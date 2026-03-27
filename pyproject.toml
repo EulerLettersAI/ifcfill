@@ -40,9 +40,17 @@ dev = [
     "build>=1.0",
     "twine>=4.0",
 ]
+docs = [
+    "mkdocs>=1.5",
+    "mkdocs-material>=9.0",
+    "mkdocstrings[python]>=0.25",
+    "mkdocs-autorefs>=0.5",
+    "ruff>=0.4",
+]
 
 [project.urls]
 Homepage = "https://github.com/EulerLettersAI/ifcfill"
+Documentation = "https://eulerlettersai.github.io/ifcfill"
 Repository = "https://github.com/EulerLettersAI/ifcfill"
 Issues = "https://github.com/EulerLettersAI/ifcfill/issues"
 
