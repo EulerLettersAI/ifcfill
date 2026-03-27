@@ -9,7 +9,7 @@ description = "Transformer of tabular data into Integer, Float and Categorical (
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [
-    { name = "EulerLettersAI", email = "your-email@example.com" },
+    { name = "Samer Elkababji", email = "skababji@gmail.com" },
 ]
 keywords = ["tabular", "imputation", "missing data", "categorical", "preprocessing", "machine learning"]
 classifiers = [
