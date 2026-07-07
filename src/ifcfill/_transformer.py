@@ -12,6 +12,7 @@ from ._types import ColType, infer_col_type
 
 # String sentinels that represent null in object columns after .astype(str)
 _NULL_SENTINELS = frozenset({"nan", "none", "<na>", "nat", "pd.na", ""})
+_CAT_ENCODINGS = ("none", "label")
 
 # Multiplier to convert total_seconds() to each supported datetime unit
 _SECONDS_PER_UNIT: dict[str, float] = {
@@ -65,6 +66,11 @@ class IFCTransformer:
         *cat_constant*.
     cat_constant:
         Fill string used when *cat_fill* is ``"constant"``.
+    cat_encoding:
+        Optional encoding for categorical columns. ``"none"`` keeps
+        categorical columns as pandas categoricals. ``"label"`` maps each
+        category to an integer code and stores the inverse mapping for
+        :meth:`inverse_transform`.
     datetime_anchor:
         Reference date for datetime-to-integer conversion.
         Defaults to the Unix epoch ``"1970-01-01"``.
@@ -87,6 +93,10 @@ class IFCTransformer:
         Number of missing values per column (all original columns).
     missing_fractions_ : dict[str, float]
         Fraction of missing values per column (all original columns).
+    category_mappings_ : dict[str, dict[str, int]]
+        Forward mapping for label-encoded categorical columns.
+    inverse_category_mappings_ : dict[str, dict[int, str]]
+        Inverse mapping for label-encoded categorical columns.
 
     Examples
     --------
@@ -102,6 +112,7 @@ class IFCTransformer:
         float_fill: Literal["mean", "median", "mode", "zero"] = "mean",
         cat_fill: Literal["mode", "constant"] = "mode",
         cat_constant: str = "missing",
+        cat_encoding: Literal["none", "label"] = "none",
         datetime_anchor: str | pd.Timestamp = "1970-01-01",
         datetime_unit: Literal["D", "s", "ms", "us", "ns"] = "D",
     ) -> None:
@@ -110,11 +121,17 @@ class IFCTransformer:
                 f"Unknown datetime_unit {datetime_unit!r}. "
                 f"Choose from: {tuple(_SECONDS_PER_UNIT)}."
             )
+        if cat_encoding not in _CAT_ENCODINGS:
+            raise ValueError(
+                f"Unknown cat_encoding {cat_encoding!r}. "
+                f"Choose from: {_CAT_ENCODINGS}."
+            )
         self.col_types: dict[str, ColType] = col_types or {}
         self.int_fill = int_fill
         self.float_fill = float_fill
         self.cat_fill = cat_fill
         self.cat_constant = cat_constant
+        self.cat_encoding = cat_encoding
         self.datetime_anchor = pd.Timestamp(datetime_anchor)
         self.datetime_unit = datetime_unit
 
@@ -125,6 +142,8 @@ class IFCTransformer:
         self.original_columns_: list[str] = []
         self.missing_counts_: dict[str, int] = {}
         self.missing_fractions_: dict[str, float] = {}
+        self.category_mappings_: dict[str, dict[str, int]] = {}
+        self.inverse_category_mappings_: dict[str, dict[int, str]] = {}
         self._is_fitted: bool = False
 
     # ------------------------------------------------------------------
@@ -170,6 +189,8 @@ class IFCTransformer:
         self.fill_values_ = {}
         self.missing_counts_ = {}
         self.missing_fractions_ = {}
+        self.category_mappings_ = {}
+        self.inverse_category_mappings_ = {}
 
         n = len(df)
 
@@ -211,6 +232,14 @@ class IFCTransformer:
                 self.fill_values_[col] = compute_fill_categorical(
                     series.to_numpy(), self.cat_fill, self.cat_constant
                 )
+                if self.cat_encoding == "label":
+                    categories = self._filled_categorical(series, self.fill_values_[col])
+                    unique_categories = sorted(pd.unique(categories.astype(str)))
+                    mapping = {value: code for code, value in enumerate(unique_categories)}
+                    self.category_mappings_[col] = mapping
+                    self.inverse_category_mappings_[col] = {
+                        code: value for value, code in mapping.items()
+                    }
 
         self._is_fitted = True
         return self
@@ -268,10 +297,14 @@ class IFCTransformer:
                 result[col] = pd.Series(arr.astype(np.float64), index=df.index, name=col)
 
             else:  # categorical
-                s = series.astype(str)
-                s = s.where(~s.str.lower().isin(_NULL_SENTINELS), other=fill_val)
-                s = s.fillna(fill_val)
-                result[col] = pd.Categorical(s)
+                s = self._filled_categorical(series, fill_val)
+                if self.cat_encoding == "label":
+                    mapping = self.category_mappings_[col]
+                    fallback = mapping[str(fill_val)]
+                    codes = s.astype(str).map(mapping).fillna(fallback).to_numpy(dtype=np.int64)
+                    result[col] = pd.Series(codes, index=df.index, name=col)
+                else:
+                    result[col] = pd.Categorical(s)
 
         return pd.DataFrame(result, index=df.index)
 
@@ -318,6 +351,12 @@ class IFCTransformer:
         for col, (value, _) in self.dropped_constants_.items():
             result[col] = value
 
+        # Decode label-encoded categorical columns before restoring structure.
+        if self.cat_encoding == "label":
+            for col, inverse_mapping in self.inverse_category_mappings_.items():
+                if col in result.columns:
+                    result[col] = self._decode_label_encoded(result[col], inverse_mapping)
+
         # Reorder to original column order (only columns present)
         available = [c for c in self.original_columns_ if c in result.columns]
         result = result[available]
@@ -342,10 +381,33 @@ class IFCTransformer:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _filled_categorical(series: pd.Series, fill_val: Any) -> pd.Series:
+        s = series.astype(str)
+        s = s.where(~s.str.lower().isin(_NULL_SENTINELS), other=fill_val)
+        return s.fillna(fill_val)
+
+    @staticmethod
+    def _decode_label_encoded(
+        series: pd.Series,
+        inverse_mapping: dict[int, str],
+    ) -> pd.Series:
+        codes = pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
+        max_code = max(inverse_mapping)
+        decoded: list[str] = []
+
+        for code in codes:
+            if np.isnan(code):
+                clipped_code = 0
+            else:
+                clipped_code = int(np.clip(np.round(code), 0, max_code))
+            decoded.append(inverse_mapping[clipped_code])
+
+        return pd.Series(decoded, index=series.index, name=series.name)
+
     def _check_fitted(self) -> None:
         if not self._is_fitted:
             raise RuntimeError(
                 "This IFCTransformer instance is not fitted yet. "
                 "Call fit() before using this method."
             )
-

@@ -7,6 +7,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- Optional categorical label encoding via `cat_encoding="label"`.
+- Category mapping attributes for inverse-compatible label encoding:
+  `category_mappings_` and `inverse_category_mappings_`.
+
+---
+
 ## [0.1.0] — 2026-03-27
 
 ### Added

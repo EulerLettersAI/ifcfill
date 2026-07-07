@@ -14,6 +14,7 @@ of every transformation so you can restore the original table structure at any t
 | Automatic type inference | Detects integer, float, categorical, and datetime columns |
 | Per-column type overrides | Force a specific type for any column |
 | Configurable imputation | Independent strategy per type (mean, median, mode, zero, constant) |
+| Categorical label encoding | Optionally encode categories as integer codes with inverse mappings |
 | Datetime conversion | Date/time → integer relative to a configurable anchor |
 | Constant column removal | Silently drops columns with a single unique value |
 | Missing value tracking | Records count and fraction per column via `missing_report_` |

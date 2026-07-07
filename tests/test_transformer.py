@@ -166,6 +166,49 @@ def test_categorical_columns_have_cat_accessor(sample_df):
     assert hasattr(result["city"], "cat")
 
 
+def test_label_encoded_categorical_columns_are_int64(sample_df):
+    result = IFCTransformer(cat_encoding="label").fit_transform(sample_df)
+    assert result["city"].dtype == np.int64
+
+
+def test_label_encoding_mapping_is_tracked(sample_df):
+    tf = IFCTransformer(cat_encoding="label")
+    tf.fit(sample_df)
+    assert tf.category_mappings_["city"] == {
+        "London": 0,
+        "Paris": 1,
+    }
+    assert tf.inverse_category_mappings_["city"] == {
+        0: "London",
+        1: "Paris",
+    }
+
+
+def test_label_encoding_inverse_restores_categories(sample_df):
+    tf = IFCTransformer(cat_encoding="label")
+    transformed = tf.fit_transform(sample_df)
+    restored = tf.inverse_transform(transformed)
+    assert list(restored["city"]) == ["London", "London", "Paris", "London"]
+
+
+def test_label_encoding_inverse_rounds_and_clips_generated_codes(sample_df):
+    tf = IFCTransformer(cat_encoding="label")
+    transformed = tf.fit_transform(sample_df)
+    generated = transformed.copy()
+    generated["city"] = [-1.4, 0.2, 0.8, 99.0]
+    restored = tf.inverse_transform(generated)
+    assert list(restored["city"]) == ["London", "London", "Paris", "Paris"]
+
+
+def test_label_encoding_transform_unseen_category_uses_fill_value(sample_df):
+    tf = IFCTransformer(cat_encoding="label")
+    tf.fit(sample_df)
+    new_df = sample_df.copy()
+    new_df.loc[0, "city"] = "Berlin"
+    transformed = tf.transform(new_df)
+    assert transformed["city"].iloc[0] == tf.category_mappings_["city"]["London"]
+
+
 # ---------------------------------------------------------------------------
 # Feature 5 – Datetime → integer conversion
 # ---------------------------------------------------------------------------
@@ -315,3 +358,7 @@ def test_invalid_datetime_unit():
     with pytest.raises(ValueError, match="datetime_unit"):
         IFCTransformer(datetime_unit="years")  # type: ignore[arg-type]
 
+
+def test_invalid_cat_encoding():
+    with pytest.raises(ValueError, match="cat_encoding"):
+        IFCTransformer(cat_encoding="target")  # type: ignore[arg-type]

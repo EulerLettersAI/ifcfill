@@ -9,6 +9,7 @@ The notebook covers:
 
 - Creating sample tabular data with numeric, categorical, datetime, missing, and constant columns
 - Running `IFCTransformer.fit_transform`
+- Label encoding categorical variables with inverse-compatible mappings
 - Inspecting inferred column types, fill values, dropped constants, and `missing_report_`
 - Restoring the original table structure with `inverse_transform`
 - Reusing a fitted transformer on new data

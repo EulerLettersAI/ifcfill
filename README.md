@@ -17,6 +17,7 @@
   - Integer: `mean`, `median`, `mode`, `zero`
   - Float: `mean`, `median`, `mode`, `zero`
   - Categorical: `mode`, `constant`
+- **Optional categorical label encoding** — encode categories as integer codes while keeping enough mapping metadata for `inverse_transform()`
 - **Datetime → integer conversion** — converts date/time columns to integers relative to a configurable anchor date and time unit (days, seconds, ms, …)
 - **Constant column removal** — automatically detects and drops columns with a single unique value
 - **Missing value tracking** — records the count and fraction of missing values per column at fit time, accessible via `missing_report_`
@@ -50,6 +51,7 @@ tf = IFCTransformer(
     int_fill="median",
     float_fill="mean",
     cat_fill="mode",
+    cat_encoding="label",
     datetime_anchor="1970-01-01",
     datetime_unit="D",
 )
@@ -90,4 +92,3 @@ Full documentation including the API reference is available at:
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).
-

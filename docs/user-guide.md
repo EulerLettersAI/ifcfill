@@ -80,6 +80,46 @@ tf = IFCTransformer(
 
 ---
 
+## Categorical encoding
+
+By default, categorical columns are returned as pandas categoricals after
+missing values are filled:
+
+```python
+tf = IFCTransformer(cat_encoding="none")  # default
+```
+
+Encodings are designed to be unsupervised and invertible so transformed data can
+be used by synthetic data generators and later mapped back to the original table
+structure.
+
+For generative modeling workflows, categorical columns can also be label
+encoded into integer codes:
+
+```python
+tf = IFCTransformer(cat_encoding="label")
+transformed = tf.fit_transform(df)
+```
+
+The learned mappings are stored after `fit()`:
+
+```python
+tf.category_mappings_          # dict: column -> {category -> code}
+tf.inverse_category_mappings_  # dict: column -> {code -> category}
+```
+
+`inverse_transform()` decodes label-encoded columns back to their original
+category values. This is designed for unsupervised synthetic-data workflows:
+generated numeric category codes are rounded to the nearest integer and clipped
+to the known code range before decoding.
+
+!!! note
+    `ifcfill` intentionally does not include target-aware encodings. Encodings
+    should stay unsupervised and invertible so synthetic data can be mapped back
+    to meaningful table values.
+
+---
+
 ## Datetime conversion
 
 Datetime columns are converted to integers representing elapsed time from an anchor
@@ -156,6 +196,7 @@ Example report:
 1. **Re-inserts** dropped constant columns with their original values
 2. **Reorders** columns to match the original input order
 3. **Optionally re-introduces** missing values at the same rates as the original data
+4. **Decodes** label-encoded categorical columns when `cat_encoding="label"`
 
 ```python
 restored = tf.inverse_transform(
