@@ -298,6 +298,46 @@ def test_datetime_missing_filled(sample_df):
     assert pd.notna(result["dates"].iloc[2])
 
 
+def test_inverse_datetime_restores_timestamp_dtype_and_values(sample_df):
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(sample_df)
+
+    restored = tf.inverse_transform(transformed)
+
+    assert pd.api.types.is_datetime64_any_dtype(restored["dates"])
+    assert restored["dates"].iloc[0] == sample_df["dates"].iloc[0]
+    assert restored["dates"].iloc[1] == sample_df["dates"].iloc[1]
+    assert restored["dates"].iloc[2] == pd.Timestamp("2021-06-15")
+    assert restored["dates"].iloc[3] == sample_df["dates"].iloc[3]
+
+
+def test_inverse_datetime_restores_seconds_unit():
+    df = pd.DataFrame(
+        {
+            "event_at": pd.to_datetime(
+                ["2024-01-01 00:00:05", "2024-01-01 00:01:30"]
+            ),
+            "value": [1, 2],
+        }
+    )
+    tf = IFCTransformer(datetime_anchor="2024-01-01", datetime_unit="s")
+    transformed = tf.fit_transform(df)
+
+    restored = tf.inverse_transform(transformed)
+
+    pd.testing.assert_series_equal(restored["event_at"], df["event_at"])
+
+
+def test_inverse_datetime_restore_missing_uses_nat(sample_df):
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(sample_df)
+
+    restored = tf.inverse_transform(transformed, restore_missing=True, random_state=1)
+
+    assert pd.api.types.is_datetime64_any_dtype(restored["dates"])
+    assert restored["dates"].isna().sum() == 1
+
+
 # ---------------------------------------------------------------------------
 # Feature 6 – Constant columns are dropped
 # ---------------------------------------------------------------------------
@@ -420,6 +460,8 @@ def test_save_and_load_preserves_inverse_transform_state(tmp_path, sample_df):
     assert list(restored.columns) == list(sample_df.columns)
     assert list(restored["city"].iloc[[0, 2, 3]]) == ["London", "Paris", "London"]
     assert pd.isna(restored["city"].iloc[1])
+    assert pd.api.types.is_datetime64_any_dtype(restored["dates"])
+    assert restored["dates"].iloc[0] == sample_df["dates"].iloc[0]
     assert (restored["const"] == "x").all()
 
 

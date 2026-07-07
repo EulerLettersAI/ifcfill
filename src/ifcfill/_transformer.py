@@ -42,6 +42,14 @@ def _datetime_to_numeric(
     return delta_seconds / _SECONDS_PER_UNIT[unit]
 
 
+def _numeric_to_datetime(
+    series: pd.Series,
+    anchor: pd.Timestamp,
+    unit: str,
+) -> pd.Series:
+    """Convert numeric datetime offsets back to timestamps."""
+    numeric = pd.to_numeric(series, errors="coerce")
+    return anchor + pd.to_timedelta(numeric, unit=unit)
 
 
 class IFCTransformer:
@@ -440,6 +448,15 @@ class IFCTransformer:
                 if col_type == "categorical" and col in result.columns:
                     result[col] = result[col].replace(str(self.fill_values_[col]), np.nan)
 
+        # Convert integer datetime offsets back to pandas timestamps.
+        for col, col_type in self.column_types_.items():
+            if col_type == "datetime" and col in result.columns:
+                result[col] = _numeric_to_datetime(
+                    result[col],
+                    self.datetime_anchor,
+                    self.datetime_unit,
+                )
+
         # Reorder to original column order (only columns present)
         available = [c for c in self.original_columns_ if c in result.columns]
         result = result[available]
@@ -457,8 +474,11 @@ class IFCTransformer:
                     n_missing = max(1, int(np.round(frac * n)))
                     n_missing = min(n_missing, n)
                     idx = rng.choice(n, size=n_missing, replace=False)
-                    result[col] = result[col].astype(object)
-                    result.iloc[idx, result.columns.get_loc(col)] = np.nan
+                    if self.column_types_.get(col) == "datetime":
+                        result.iloc[idx, result.columns.get_loc(col)] = pd.NaT
+                    else:
+                        result[col] = result[col].astype(object)
+                        result.iloc[idx, result.columns.get_loc(col)] = np.nan
 
         return result
 

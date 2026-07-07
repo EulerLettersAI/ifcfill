@@ -5,5 +5,5 @@ variables and fill/impute missing data.
 
 from ._transformer import IFCTransformer
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 __all__ = ["IFCTransformer"]

@@ -7,6 +7,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.3.1] — 2026-07-08
+
+### Fixed
+
+- `inverse_transform()` now converts datetime columns from their integer offset
+  representation back to pandas timestamps.
+- Datetime missing-value restoration now uses `NaT`, preserving datetime dtype
+  when `restore_missing=True`.
+
+---
+
 ## [0.3.0] — 2026-07-07
 
 ### Added
