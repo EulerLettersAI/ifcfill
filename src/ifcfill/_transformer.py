@@ -15,6 +15,7 @@ from ._types import ColType, infer_col_type
 # String sentinels that represent null in object columns after .astype(str)
 _NULL_SENTINELS = frozenset({"nan", "none", "<na>", "nat", "pd.na", ""})
 _CAT_ENCODINGS = ("none", "label")
+DEFAULT_CAT_CONSTANT = "__ifcfill_missing__"
 _STATE_VERSION = 1
 
 # Multiplier to convert total_seconds() to each supported datetime unit
@@ -70,6 +71,8 @@ class IFCTransformer:
         uses the most frequent value.
     cat_constant:
         Fill string used when *cat_fill* is ``"constant"``.
+        Defaults to ``"__ifcfill_missing__"`` to reduce collisions with real
+        user categories.
     cat_encoding:
         Optional encoding for categorical columns. ``"none"`` keeps
         categorical columns as pandas categoricals. ``"label"`` fills
@@ -116,7 +119,7 @@ class IFCTransformer:
         int_fill: Literal["mean", "median", "mode", "zero"] = "median",
         float_fill: Literal["mean", "median", "mode", "zero"] = "mean",
         cat_fill: Literal["mode", "constant"] = "constant",
-        cat_constant: str = "missing",
+        cat_constant: str = DEFAULT_CAT_CONSTANT,
         cat_encoding: Literal["none", "label"] = "none",
         datetime_anchor: str | pd.Timestamp = "1970-01-01",
         datetime_unit: Literal["D", "s", "ms", "us", "ns"] = "D",

@@ -177,12 +177,12 @@ def test_label_encoding_mapping_is_tracked(sample_df):
     assert tf.category_mappings_["city"] == {
         "London": 0,
         "Paris": 1,
-        "missing": 2,
+        "__ifcfill_missing__": 2,
     }
     assert tf.inverse_category_mappings_["city"] == {
         0: "London",
         1: "Paris",
-        2: "missing",
+        2: "__ifcfill_missing__",
     }
 
 
@@ -250,13 +250,13 @@ def test_label_encoding_transform_unseen_category_uses_fill_value(sample_df):
     new_df = sample_df.copy()
     new_df.loc[0, "city"] = "Berlin"
     transformed = tf.transform(new_df)
-    assert transformed["city"].iloc[0] == tf.category_mappings_["city"]["missing"]
+    assert transformed["city"].iloc[0] == tf.category_mappings_["city"]["__ifcfill_missing__"]
 
 
 def test_categorical_missing_category_inverts_to_nan(sample_df):
     tf = IFCTransformer()
     transformed = tf.fit_transform(sample_df)
-    assert transformed["city"].iloc[1] == "missing"
+    assert transformed["city"].iloc[1] == "__ifcfill_missing__"
     restored = tf.inverse_transform(transformed)
     assert pd.isna(restored["city"].iloc[1])
 

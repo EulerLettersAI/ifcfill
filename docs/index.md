@@ -21,6 +21,7 @@ tabular generator.
 | Per-column type overrides | Force a specific type for any column |
 | Configurable imputation | Independent strategy per type (mean, median, mode, zero, constant) |
 | Categorical missingness | Treats missing categorical values as a learnable category and restores them on inverse transform |
+| Namespaced missing sentinel | Uses `__ifcfill_missing__` by default to reduce category collisions |
 | Categorical label encoding | Optionally encode filled categories as integer codes with a separate inverse-compatible encoder layer |
 | Datetime conversion | Date/time → integer relative to a configurable anchor |
 | Constant column removal | Drops true constants while preserving learnable categorical missing categories |

@@ -109,12 +109,15 @@ tf = IFCTransformer(
 
 | Strategy | Fill value |
 |---|---|
-| `"constant"` *(default)* | The string supplied in `cat_constant` (default `"missing"`) |
+| `"constant"` *(default)* | The string supplied in `cat_constant` (default `"__ifcfill_missing__"`) |
 | `"mode"` | Most frequent non-null value |
 
 The default categorical strategy treats missing categorical values as their own
 learnable category. If a generator later emits that category, `inverse_transform()`
 converts it back to a missing value.
+
+The default sentinel is deliberately namespaced as `"__ifcfill_missing__"` to
+reduce collisions with real categories such as `"missing"` or `"unknown"`.
 
 ```python
 tf = IFCTransformer(
