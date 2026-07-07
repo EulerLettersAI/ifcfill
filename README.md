@@ -23,6 +23,9 @@ so it can be mapped back to the original table structure.
 4. Apply `inverse_transform()` to the synthetic output using the mappings learned
    from the real data.
 
+If inverse transformation happens later or on another machine, save the fitted
+transformation state with `save()` and load it back with `IFCTransformer.load()`.
+
 The package is intentionally unsupervised: it does not require or model a target
 variable.
 
@@ -37,11 +40,12 @@ variable.
   - Float: `mean`, `median`, `mode`, `zero`
   - Categorical: `constant` (default), `mode`
 - **Categorical missingness as a category** — missing categorical values are transformed into a learnable category and converted back to missing values during `inverse_transform()`
-- **Optional categorical label encoding** — encode categories as integer codes while keeping enough mapping metadata for `inverse_transform()`
+- **Optional categorical label encoding** — fill categorical values first, then encode categories as integer codes through a separate label-encoding layer with inverse mappings
 - **Datetime → integer conversion** — converts date/time columns to integers relative to a configurable anchor date and time unit (days, seconds, ms, …)
-- **Constant column removal** — automatically detects and drops columns with a single unique value
+- **Constant column removal** — automatically drops true constant columns while preserving categorical missing categories when they are learnable
 - **Missing value tracking** — records the count and fraction of missing values per column at fit time, accessible via `missing_report_`
 - **Full transformation bookkeeping** — `inverse_transform()` restores dropped constants, original column order, and optionally re-introduces missing values at the original rate
+- **Portable fitted state** — save all learned transformations to JSON and load them later for consistent transform/inverse-transform workflows on another machine
 - **Synthetic-data workflow support** — apply one inverse transformation consistently to both transformed real data and generated synthetic data
 
 ---
@@ -85,6 +89,13 @@ print(tf.missing_report_)
 # Categorical missing categories are converted back to missing values.
 restored = tf.inverse_transform(transformed, restore_missing=True, random_state=42)
 print(restored)
+
+# Save everything needed to transform or inverse-transform later.
+tf.save("ifcfill-state.json")
+
+# On another machine or in another process:
+loaded_tf = IFCTransformer.load("ifcfill-state.json")
+restored_again = loaded_tf.inverse_transform(transformed)
 ```
 
 ### From a CSV file
@@ -98,6 +109,18 @@ transformed = IFCTransformer().fit_transform("data.csv")
 ```python
 tf = IFCTransformer(col_types={"age": "categorical", "score": "float"})
 transformed = tf.fit_transform(df)
+```
+
+### Label encoding for generators
+
+```python
+tf = IFCTransformer(cat_encoding="label")
+transformed = tf.fit_transform(df)
+
+# Safe copies of learned category/code dictionaries
+print(tf.get_category_mappings())
+
+restored = tf.inverse_transform(transformed)
 ```
 
 ---

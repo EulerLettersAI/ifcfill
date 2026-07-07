@@ -14,7 +14,7 @@ The typical workflow is:
 3. Use any tabular generator to produce synthetic data in the transformed IFC
    space.
 4. Call `inverse_transform()` on the synthetic output using the same fitted
-   transformer.
+   transformer, or save and load the fitted state when this happens elsewhere.
 
 ```python
 tf = IFCTransformer(cat_encoding="label")
@@ -25,6 +25,16 @@ real_ifc = tf.fit_transform(real_df)
 # synthetic_ifc = generator.sample(...)
 
 synthetic_df = tf.inverse_transform(synthetic_ifc)
+```
+
+For a separate inverse-transform environment:
+
+```python
+tf.save("ifcfill-state.json")
+
+# Later, or on another machine:
+loaded_tf = IFCTransformer.load("ifcfill-state.json")
+synthetic_df = loaded_tf.inverse_transform(synthetic_ifc)
 ```
 
 `ifcfill` is intentionally unsupervised. It does not require a target variable,
@@ -127,9 +137,10 @@ learned missing category:
 tf = IFCTransformer(cat_encoding="none")  # default
 ```
 
-Encodings are designed to be unsupervised and invertible so transformed data can
-be used by synthetic data generators and later mapped back to the original table
-structure.
+Encodings are designed to be unsupervised and invertible. Categorical missing
+values are filled first, and label encoding is applied as a second layer over
+the completed set of categories. This means the learned missing category is part
+of the mapping even when it did not appear in the fit data.
 
 For generative modeling workflows, categorical columns can also be label
 encoded into integer codes:
@@ -153,6 +164,9 @@ category values. This is designed for unsupervised synthetic-data workflows:
 generated numeric category codes are rounded to the nearest integer and clipped
 to the known code range before decoding. If the decoded value is the learned
 categorical missing category, it is converted back to a missing value.
+
+When new or unseen categories appear during `transform()`, they fall back to the
+learned categorical fill value before encoding.
 
 !!! note
     `ifcfill` intentionally does not include target-aware encodings. Encodings
@@ -217,6 +231,10 @@ output of `transform()`. This includes:
 - Columns where every row has the same value
 - Columns that are entirely `NaN`/`None`
 
+Categorical columns with one observed category and missing values are preserved
+when `cat_fill="constant"` because the missing value becomes a second learned
+category.
+
 Dropped columns and their values are stored in `dropped_constants_`:
 
 ```python
@@ -260,9 +278,9 @@ Example report:
 `inverse_transform()` reverses the structural changes made by `transform()`:
 
 1. **Re-inserts** dropped constant columns with their original values
-2. **Reorders** columns to match the original input order
-3. **Decodes** label-encoded categorical columns when `cat_encoding="label"`
-4. **Converts** learned categorical missing categories back to missing values
+2. **Decodes** label-encoded categorical integer codes when `cat_encoding="label"`
+3. **Converts** learned categorical missing categories back to missing values
+4. **Reorders** columns to match the original input order
 5. **Optionally re-introduces** non-categorical missing values at the same rates as the original data
 
 ```python

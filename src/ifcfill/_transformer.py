@@ -72,8 +72,9 @@ class IFCTransformer:
         Fill string used when *cat_fill* is ``"constant"``.
     cat_encoding:
         Optional encoding for categorical columns. ``"none"`` keeps
-        categorical columns as pandas categoricals. ``"label"`` maps each
-        category to an integer code and stores the inverse mapping for
+        categorical columns as pandas categoricals. ``"label"`` fills
+        categorical values first, then maps each completed category to an
+        integer code through a separate encoder layer and stores mappings for
         :meth:`inverse_transform`.
     datetime_anchor:
         Reference date for datetime-to-integer conversion.
@@ -387,10 +388,10 @@ class IFCTransformer:
         Specifically:
 
         1. Re-inserts dropped constant columns at their original positions.
-        2. Reorders columns to match the original input order.
-        3. Decodes label-encoded categorical columns when enabled.
-        4. Converts the learned categorical missing category back to ``NaN``
+        2. Decodes label-encoded categorical columns when enabled.
+        3. Converts the learned categorical missing category back to ``NaN``
            when ``cat_fill="constant"``.
+        4. Reorders columns to match the original input order.
         5. (Optional) Randomly replaces values with ``NaN`` in each
            non-categorical, non-constant column at the same rate as the
            original missing fraction.

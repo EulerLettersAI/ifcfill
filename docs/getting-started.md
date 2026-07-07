@@ -80,7 +80,41 @@ transformed_test  = tf.transform(test_df)   # same rules applied
 
 ---
 
-### 4 — Check what happened
+### 4 — Save the fitted transformation state
+
+Save the fitted state when inverse transformation may happen later or on another
+machine:
+
+```python
+tf.save("ifcfill-state.json")
+```
+
+Load it back without fitting again:
+
+```python
+loaded_tf = IFCTransformer.load("ifcfill-state.json")
+restored = loaded_tf.inverse_transform(synthetic_ifc)
+```
+
+---
+
+### 5 — Use label encoding for categorical generator inputs
+
+```python
+tf = IFCTransformer(cat_encoding="label")
+transformed = tf.fit_transform(df)
+
+print(tf.get_category_mappings())
+```
+
+Categorical values are filled first, then the label encoder maps the resulting
+categories to integer codes. During inverse transformation, the integer codes are
+decoded back to categories before missing categories are restored to missing
+values.
+
+---
+
+### 6 — Check what happened
 
 ```python
 # See types detected for each column
@@ -95,7 +129,7 @@ print(tf.missing_report_)
 
 ---
 
-### 5 — Restore the original structure
+### 7 — Restore the original structure
 
 ```python
 restored = tf.inverse_transform(

@@ -12,8 +12,10 @@ The notebooks cover:
 - Creating sample tabular data with numeric, categorical, datetime, missing, and constant columns
 - Running `IFCTransformer.fit_transform`
 - Keeping categoricals unencoded with the default `cat_encoding="none"`
-- Label encoding categorical variables with inverse-compatible mappings using `cat_encoding="label"`
+- Label encoding filled categorical variables with inverse-compatible mappings using `cat_encoding="label"`
+- Inspecting mapping dictionaries with `get_category_mappings()` and `get_category_mapping(...)`
 - Inspecting inferred column types, fill values, dropped constants, and `missing_report_`
+- Saving and loading fitted transformation state for later inverse transformation
 - Restoring the original table structure with `inverse_transform`
 
 To run the notebooks:

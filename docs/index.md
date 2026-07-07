@@ -21,11 +21,12 @@ tabular generator.
 | Per-column type overrides | Force a specific type for any column |
 | Configurable imputation | Independent strategy per type (mean, median, mode, zero, constant) |
 | Categorical missingness | Treats missing categorical values as a learnable category and restores them on inverse transform |
-| Categorical label encoding | Optionally encode categories as integer codes with inverse mappings |
+| Categorical label encoding | Optionally encode filled categories as integer codes with a separate inverse-compatible encoder layer |
 | Datetime conversion | Date/time → integer relative to a configurable anchor |
-| Constant column removal | Silently drops columns with a single unique value |
+| Constant column removal | Drops true constants while preserving learnable categorical missing categories |
 | Missing value tracking | Records count and fraction per column via `missing_report_` |
 | Inverse transform | Restores constants, column order, categorical missing values, and optional non-categorical missing-value distribution |
+| Portable fitted state | Save learned transformations to JSON and load them later on another machine |
 | Generator support | Fit on real data, transform for a generator, inverse-transform generated synthetic data |
 
 ---
@@ -45,8 +46,11 @@ tf = IFCTransformer()
 real_ifc = tf.fit_transform("real_data.csv")
 print(tf.missing_report_)
 
+tf.save("ifcfill-state.json")
+
 # synthetic_ifc is produced by your tabular synthetic-data generator
-synthetic_restored = tf.inverse_transform(synthetic_ifc)
+loaded_tf = IFCTransformer.load("ifcfill-state.json")
+synthetic_restored = loaded_tf.inverse_transform(synthetic_ifc)
 ```
 
 ---
