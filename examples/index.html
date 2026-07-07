@@ -591,25 +591,27 @@
 
 
 <h1 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h1>
-<p>The repository includes a notebook that walks through the main <code>ifcfill</code>
-workflow with a small pandas DataFrame:</p>
+<p>The repository includes two notebooks that walk through the main <code>ifcfill</code>
+workflows with small pandas DataFrames:</p>
 <ul>
-<li><a href="https://github.com/EulerLettersAI/ifcfill/blob/main/examples/ifcfill_basic_usage.ipynb">Basic ifcfill usage notebook</a></li>
+<li><a href="https://github.com/EulerLettersAI/ifcfill/blob/main/examples/ifcfill_basic_usage_without_encoding.ipynb">Basic usage without categorical encoding</a></li>
+<li><a href="https://github.com/EulerLettersAI/ifcfill/blob/main/examples/ifcfill_label_encoding_for_synthetic_data.ipynb">Label encoding for synthetic data</a></li>
 </ul>
-<p>The notebook covers:</p>
+<p>The notebooks cover:</p>
 <ul>
+<li>Using <code>ifcfill</code> around tabular synthetic-data workflows without a target variable</li>
 <li>Creating sample tabular data with numeric, categorical, datetime, missing, and constant columns</li>
 <li>Running <code>IFCTransformer.fit_transform</code></li>
-<li>Label encoding categorical variables with inverse-compatible mappings</li>
+<li>Keeping categoricals unencoded with the default <code>cat_encoding="none"</code></li>
+<li>Label encoding categorical variables with inverse-compatible mappings using <code>cat_encoding="label"</code></li>
 <li>Inspecting inferred column types, fill values, dropped constants, and <code>missing_report_</code></li>
 <li>Restoring the original table structure with <code>inverse_transform</code></li>
-<li>Reusing a fitted transformer on new data</li>
 </ul>
-<p>To run it from a local clone:</p>
+<p>To run the notebooks:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">source</span><span class="w"> </span>.venv/bin/activate
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[examples]&quot;</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>jupyter<span class="w"> </span>notebook<span class="w"> </span>examples/ifcfill_basic_usage.ipynb
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;ifcfill[examples]&quot;</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>jupyter<span class="w"> </span>notebook
 </code></pre></div>
 <p>The base install stays lean:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span>ifcfill

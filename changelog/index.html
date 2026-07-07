@@ -756,6 +756,8 @@ This project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic V
 <li>Optional categorical label encoding via <code>cat_encoding="label"</code>.</li>
 <li>Category mapping attributes for inverse-compatible label encoding:
   <code>category_mappings_</code> and <code>inverse_category_mappings_</code>.</li>
+<li>Categorical missing values are represented as a learnable category by default
+  and converted back to missing values during <code>inverse_transform()</code>.</li>
 </ul>
 <hr />
 <h2 id="010-2026-03-27">[0.1.0] — 2026-03-27<a class="headerlink" href="#010-2026-03-27" title="Permanent link">&para;</a></h2>

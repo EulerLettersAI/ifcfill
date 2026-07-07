@@ -700,9 +700,14 @@
 
 
 <h1 id="ifcfill">ifcfill<a class="headerlink" href="#ifcfill" title="Permanent link">&para;</a></h1>
-<p><strong>ifcfill</strong> transforms tabular data into <strong>I</strong>nteger, <strong>F</strong>loat, and <strong>C</strong>ategorical (IFC)
-variables, fills missing values using fast NumPy operations, and keeps a full audit trail
-of every transformation so you can restore the original table structure at any time.</p>
+<p><strong>ifcfill</strong> prepares tabular data for synthetic-data generation. It transforms
+real data into <strong>I</strong>nteger, <strong>F</strong>loat, and <strong>C</strong>ategorical (IFC) variables, fills
+missing values using fast NumPy operations, and keeps the metadata needed to map
+generated synthetic data back to the original table structure.</p>
+<p><code>ifcfill</code> is intentionally unsupervised. It does not require a target variable;
+instead, it learns transformation and inverse-transformation rules from the real
+data so the same inverse rules can be applied to synthetic outputs from any
+tabular generator.</p>
 <hr />
 <h2 id="key-features">Key Features<a class="headerlink" href="#key-features" title="Permanent link">&para;</a></h2>
 <table>
@@ -730,6 +735,10 @@ of every transformation so you can restore the original table structure at any t
 <td>Independent strategy per type (mean, median, mode, zero, constant)</td>
 </tr>
 <tr>
+<td>Categorical missingness</td>
+<td>Treats missing categorical values as a learnable category and restores them on inverse transform</td>
+</tr>
+<tr>
 <td>Categorical label encoding</td>
 <td>Optionally encode categories as integer codes with inverse mappings</td>
 </tr>
@@ -747,7 +756,11 @@ of every transformation so you can restore the original table structure at any t
 </tr>
 <tr>
 <td>Inverse transform</td>
-<td>Restores constants, column order, and optional missing-value distribution</td>
+<td>Restores constants, column order, categorical missing values, and optional non-categorical missing-value distribution</td>
+</tr>
+<tr>
+<td>Generator support</td>
+<td>Fit on real data, transform for a generator, inverse-transform generated synthetic data</td>
 </tr>
 </tbody>
 </table>
@@ -759,10 +772,11 @@ of every transformation so you can restore the original table structure at any t
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">ifcfill</span><span class="w"> </span><span class="kn">import</span> <span class="n">IFCTransformer</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">()</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">transformed</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="s2">&quot;data.csv&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">real_ifc</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="s2">&quot;real_data.csv&quot;</span><span class="p">)</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">missing_report_</span><span class="p">)</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span><span class="n">transformed</span><span class="p">,</span> <span class="n">restore_missing</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># synthetic_ifc is produced by your tabular synthetic-data generator</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">synthetic_restored</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span><span class="n">synthetic_ifc</span><span class="p">)</span>
 </code></pre></div>
 <hr />
 <p><a href="getting-started/">Get started →</a>{ .md-button .md-button--primary }
