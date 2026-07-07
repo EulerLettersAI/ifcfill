@@ -603,8 +603,10 @@ workflows with small pandas DataFrames:</p>
 <li>Creating sample tabular data with numeric, categorical, datetime, missing, and constant columns</li>
 <li>Running <code>IFCTransformer.fit_transform</code></li>
 <li>Keeping categoricals unencoded with the default <code>cat_encoding="none"</code></li>
-<li>Label encoding categorical variables with inverse-compatible mappings using <code>cat_encoding="label"</code></li>
+<li>Label encoding filled categorical variables with inverse-compatible mappings using <code>cat_encoding="label"</code></li>
+<li>Inspecting mapping dictionaries with <code>get_category_mappings()</code> and <code>get_category_mapping(...)</code></li>
 <li>Inspecting inferred column types, fill values, dropped constants, and <code>missing_report_</code></li>
+<li>Saving and loading fitted transformation state for later inverse transformation</li>
 <li>Restoring the original table structure with <code>inverse_transform</code></li>
 </ul>
 <p>To run the notebooks:</p>

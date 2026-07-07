@@ -740,7 +740,7 @@ tabular generator.</p>
 </tr>
 <tr>
 <td>Categorical label encoding</td>
-<td>Optionally encode categories as integer codes with inverse mappings</td>
+<td>Optionally encode filled categories as integer codes with a separate inverse-compatible encoder layer</td>
 </tr>
 <tr>
 <td>Datetime conversion</td>
@@ -748,7 +748,7 @@ tabular generator.</p>
 </tr>
 <tr>
 <td>Constant column removal</td>
-<td>Silently drops columns with a single unique value</td>
+<td>Drops true constants while preserving learnable categorical missing categories</td>
 </tr>
 <tr>
 <td>Missing value tracking</td>
@@ -757,6 +757,10 @@ tabular generator.</p>
 <tr>
 <td>Inverse transform</td>
 <td>Restores constants, column order, categorical missing values, and optional non-categorical missing-value distribution</td>
+</tr>
+<tr>
+<td>Portable fitted state</td>
+<td>Save learned transformations to JSON and load them later on another machine</td>
 </tr>
 <tr>
 <td>Generator support</td>
@@ -775,8 +779,11 @@ tabular generator.</p>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">real_ifc</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="s2">&quot;real_data.csv&quot;</span><span class="p">)</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">missing_report_</span><span class="p">)</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># synthetic_ifc is produced by your tabular synthetic-data generator</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">synthetic_restored</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span><span class="n">synthetic_ifc</span><span class="p">)</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">tf</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;ifcfill-state.json&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1"># synthetic_ifc is produced by your tabular synthetic-data generator</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="n">loaded_tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;ifcfill-state.json&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="n">synthetic_restored</span> <span class="o">=</span> <span class="n">loaded_tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span><span class="n">synthetic_ifc</span><span class="p">)</span>
 </code></pre></div>
 <hr />
 <p><a href="getting-started/">Get started →</a>{ .md-button .md-button--primary }

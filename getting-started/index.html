@@ -541,10 +541,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#4-check-what-happened" class="md-nav__link">
+  <a href="#4-save-the-fitted-transformation-state" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4 — Check what happened
+        4 — Save the fitted transformation state
       
     </span>
   </a>
@@ -552,10 +552,32 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#5-restore-the-original-structure" class="md-nav__link">
+  <a href="#5-use-label-encoding-for-categorical-generator-inputs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5 — Restore the original structure
+        5 — Use label encoding for categorical generator inputs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-check-what-happened" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6 — Check what happened
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-restore-the-original-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7 — Restore the original structure
       
     </span>
   </a>
@@ -788,10 +810,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#4-check-what-happened" class="md-nav__link">
+  <a href="#4-save-the-fitted-transformation-state" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4 — Check what happened
+        4 — Save the fitted transformation state
       
     </span>
   </a>
@@ -799,10 +821,32 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#5-restore-the-original-structure" class="md-nav__link">
+  <a href="#5-use-label-encoding-for-categorical-generator-inputs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5 — Restore the original structure
+        5 — Use label encoding for categorical generator inputs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-check-what-happened" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6 — Check what happened
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-restore-the-original-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7 — Restore the original structure
       
     </span>
   </a>
@@ -903,24 +947,45 @@
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">transformed_test</span>  <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">test_df</span><span class="p">)</span>   <span class="c1"># same rules applied</span>
 </code></pre></div>
 <hr />
-<h3 id="4-check-what-happened">4 — Check what happened<a class="headerlink" href="#4-check-what-happened" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># See types detected for each column</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">column_types_</span><span class="p">)</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># See fill values chosen for each column</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">fill_values_</span><span class="p">)</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Full missing-value report</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">missing_report_</span><span class="p">)</span>
+<h3 id="4-save-the-fitted-transformation-state">4 — Save the fitted transformation state<a class="headerlink" href="#4-save-the-fitted-transformation-state" title="Permanent link">&para;</a></h3>
+<p>Save the fitted state when inverse transformation may happen later or on another
+machine:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">tf</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;ifcfill-state.json&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Load it back without fitting again:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">loaded_tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;ifcfill-state.json&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">loaded_tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span><span class="n">synthetic_ifc</span><span class="p">)</span>
 </code></pre></div>
 <hr />
-<h3 id="5-restore-the-original-structure">5 — Restore the original structure<a class="headerlink" href="#5-restore-the-original-structure" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">transformed</span><span class="p">,</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">restore_missing</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>   <span class="c1"># statistical restoration for imputed non-categoricals</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">random_state</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span>        <span class="c1"># reproducible</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="p">)</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">restored</span><span class="p">)</span>
+<h3 id="5-use-label-encoding-for-categorical-generator-inputs">5 — Use label encoding for categorical generator inputs<a class="headerlink" href="#5-use-label-encoding-for-categorical-generator-inputs" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span><span class="n">cat_encoding</span><span class="o">=</span><span class="s2">&quot;label&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">transformed</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">get_category_mappings</span><span class="p">())</span>
+</code></pre></div>
+<p>Categorical values are filled first, then the label encoder maps the resulting
+categories to integer codes. During inverse transformation, the integer codes are
+decoded back to categories before missing categories are restored to missing
+values.</p>
+<hr />
+<h3 id="6-check-what-happened">6 — Check what happened<a class="headerlink" href="#6-check-what-happened" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># See types detected for each column</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">column_types_</span><span class="p">)</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># See fill values chosen for each column</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">fill_values_</span><span class="p">)</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># Full missing-value report</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">missing_report_</span><span class="p">)</span>
+</code></pre></div>
+<hr />
+<h3 id="7-restore-the-original-structure">7 — Restore the original structure<a class="headerlink" href="#7-restore-the-original-structure" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="n">transformed</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">restore_missing</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>   <span class="c1"># statistical restoration for imputed non-categoricals</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">random_state</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span>        <span class="c1"># reproducible</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="p">)</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">restored</span><span class="p">)</span>
 </code></pre></div>
 <hr />
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
