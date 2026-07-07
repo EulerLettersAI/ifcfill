@@ -16,7 +16,7 @@
         <link rel="prev" href="..">
       
       
-        <link rel="next" href="../user-guide/">
+        <link rel="next" href="../examples/">
       
       
         
@@ -253,6 +253,25 @@
     
   
   Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../examples/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Examples
 
       </a>
     </li>
@@ -574,6 +593,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../user-guide/" class="md-nav__link">
         
   
@@ -810,37 +856,34 @@
 <p>Install from PyPI:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>ifcfill
 </code></pre></div>
-<p>To install with optional Polars support:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;ifcfill[polars]&quot;</span>
-</code></pre></div>
 <p>To install documentation build tools:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;ifcfill[docs]&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;ifcfill[docs]&quot;</span>
 </code></pre></div>
 <hr />
 <h2 id="your-first-transformation">Your First Transformation<a class="headerlink" href="#your-first-transformation" title="Permanent link">&para;</a></h2>
 <h3 id="1-from-a-pandas-dataframe">1 — From a pandas DataFrame<a class="headerlink" href="#1-from-a-pandas-dataframe" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">ifcfill</span><span class="w"> </span><span class="kn">import</span> <span class="n">IFCTransformer</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="s2">&quot;age&quot;</span><span class="p">:</span>    <span class="p">[</span><span class="mi">25</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">40</span><span class="p">],</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="s2">&quot;salary&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">50_000.5</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">75_000.0</span><span class="p">,</span> <span class="mf">90_000.25</span><span class="p">],</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="s2">&quot;city&quot;</span><span class="p">:</span>   <span class="p">[</span><span class="s2">&quot;London&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;Paris&quot;</span><span class="p">,</span> <span class="s2">&quot;London&quot;</span><span class="p">],</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="s2">&quot;joined&quot;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">([</span><span class="s2">&quot;2020-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2021-06-15&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;2023-03-10&quot;</span><span class="p">]),</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="s2">&quot;flag&quot;</span><span class="p">:</span>   <span class="p">[</span><span class="s2">&quot;yes&quot;</span><span class="p">,</span> <span class="s2">&quot;yes&quot;</span><span class="p">,</span> <span class="s2">&quot;yes&quot;</span><span class="p">,</span> <span class="s2">&quot;yes&quot;</span><span class="p">],</span>  <span class="c1"># constant column</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="p">})</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">()</span>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="n">transformed</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">transformed</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">ifcfill</span><span class="w"> </span><span class="kn">import</span> <span class="n">IFCTransformer</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="s2">&quot;age&quot;</span><span class="p">:</span>    <span class="p">[</span><span class="mi">25</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">40</span><span class="p">],</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="s2">&quot;salary&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">50_000.5</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">75_000.0</span><span class="p">,</span> <span class="mf">90_000.25</span><span class="p">],</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="s2">&quot;city&quot;</span><span class="p">:</span>   <span class="p">[</span><span class="s2">&quot;London&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;Paris&quot;</span><span class="p">,</span> <span class="s2">&quot;London&quot;</span><span class="p">],</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="s2">&quot;joined&quot;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">([</span><span class="s2">&quot;2020-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2021-06-15&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;2023-03-10&quot;</span><span class="p">]),</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="s2">&quot;flag&quot;</span><span class="p">:</span>   <span class="p">[</span><span class="s2">&quot;yes&quot;</span><span class="p">,</span> <span class="s2">&quot;yes&quot;</span><span class="p">,</span> <span class="s2">&quot;yes&quot;</span><span class="p">,</span> <span class="s2">&quot;yes&quot;</span><span class="p">],</span>  <span class="c1"># constant column</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="p">})</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">()</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="n">transformed</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">transformed</span><span class="p">)</span>
 </code></pre></div>
 <p>Output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>   age       salary    city  joined
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>0   25   50000.500  London   18262
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>1   30   71666.917  London   18793
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>2   30   75000.000   Paris   19063    ← NaT filled with median
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>3   40   90000.250  London   19426
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>   age       salary    city  joined
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>0   25   50000.500  London   18262
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>1   30   71666.917  London   18793
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>2   30   75000.000   Paris   19063    ← NaT filled with median
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>3   40   90000.250  London   19426
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -848,40 +891,41 @@
 </div>
 <hr />
 <h3 id="2-from-a-csv-file">2 — From a CSV file<a class="headerlink" href="#2-from-a-csv-file" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">()</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">transformed</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="s2">&quot;path/to/data.csv&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">()</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">transformed</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="s2">&quot;path/to/data.csv&quot;</span><span class="p">)</span>
 </code></pre></div>
 <hr />
 <h3 id="3-fit-once-transform-many-times">3 — Fit once, transform many times<a class="headerlink" href="#3-fit-once-transform-many-times" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">()</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">tf</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">train_df</span><span class="p">)</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">transformed_train</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">train_df</span><span class="p">)</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">transformed_test</span>  <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">test_df</span><span class="p">)</span>   <span class="c1"># same rules applied</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">()</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">tf</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">train_df</span><span class="p">)</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">transformed_train</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">train_df</span><span class="p">)</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">transformed_test</span>  <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">test_df</span><span class="p">)</span>   <span class="c1"># same rules applied</span>
 </code></pre></div>
 <hr />
 <h3 id="4-check-what-happened">4 — Check what happened<a class="headerlink" href="#4-check-what-happened" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># See types detected for each column</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">column_types_</span><span class="p">)</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># See fill values chosen for each column</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">fill_values_</span><span class="p">)</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># Full missing-value report</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">missing_report_</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># See types detected for each column</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">column_types_</span><span class="p">)</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># See fill values chosen for each column</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">fill_values_</span><span class="p">)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Full missing-value report</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">missing_report_</span><span class="p">)</span>
 </code></pre></div>
 <hr />
 <h3 id="5-restore-the-original-structure">5 — Restore the original structure<a class="headerlink" href="#5-restore-the-original-structure" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">transformed</span><span class="p">,</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">restore_missing</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>   <span class="c1"># re-introduce NaN proportionally</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">random_state</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span>        <span class="c1"># reproducible</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="p">)</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">restored</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">transformed</span><span class="p">,</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">restore_missing</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>   <span class="c1"># re-introduce NaN proportionally</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">random_state</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span>        <span class="c1"># reproducible</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="p">)</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">restored</span><span class="p">)</span>
 </code></pre></div>
 <hr />
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
+<li><a href="../examples/">Examples</a> — notebook walkthrough of the main workflow</li>
 <li><a href="../user-guide/">User Guide</a> — detailed walkthrough of every feature</li>
 <li><a href="../api/">API Reference</a> — complete parameter and return-type documentation</li>
 </ul>
