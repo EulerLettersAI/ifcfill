@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ifcfill"
-version = "0.1.0"
+version = "0.2.0"
 description = "Transformer of tabular data into Integer, Float and Categorical (IFC) variables with missing data imputation."
 readme = "README.md"
 license = { file = "LICENSE" }
