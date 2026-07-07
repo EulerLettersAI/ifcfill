@@ -144,6 +144,8 @@ The learned mappings are stored after `fit()`:
 ```python
 tf.category_mappings_          # dict: column -> {category -> code}
 tf.inverse_category_mappings_  # dict: column -> {code -> category}
+tf.get_category_mappings()     # defensive copy of all forward mappings
+tf.get_category_mapping("city") # defensive copy for one column
 ```
 
 `inverse_transform()` decodes label-encoded columns back to their original
@@ -156,6 +158,31 @@ categorical missing category, it is converted back to a missing value.
     `ifcfill` intentionally does not include target-aware encodings. Encodings
     should stay unsupervised and invertible so synthetic data can be mapped back
     to meaningful table values.
+
+---
+
+## Saving fitted transformations
+
+For workflows where inverse transformation happens later or on another machine,
+save the fitted transformer state after `fit()` or `fit_transform()`:
+
+```python
+tf = IFCTransformer(cat_encoding="label")
+real_ifc = tf.fit_transform(real_df)
+tf.save("ifcfill-state.json")
+```
+
+Then load the same transformation state wherever generated data needs to be
+restored:
+
+```python
+loaded_tf = IFCTransformer.load("ifcfill-state.json")
+synthetic_df = loaded_tf.inverse_transform(synthetic_ifc)
+```
+
+The JSON state includes the learned column types, fill values, dropped
+constants, missing-value statistics, categorical label mappings, datetime
+settings, and original column order.
 
 ---
 

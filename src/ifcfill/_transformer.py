@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 
+from ._encoding import LabelCategoryEncoder
 from ._impute import compute_fill_categorical, compute_fill_float, compute_fill_integer
 from ._io import load_to_dataframe
 from ._types import ColType, infer_col_type
@@ -13,6 +15,7 @@ from ._types import ColType, infer_col_type
 # String sentinels that represent null in object columns after .astype(str)
 _NULL_SENTINELS = frozenset({"nan", "none", "<na>", "nat", "pd.na", ""})
 _CAT_ENCODINGS = ("none", "label")
+_STATE_VERSION = 1
 
 # Multiplier to convert total_seconds() to each supported datetime unit
 _SECONDS_PER_UNIT: dict[str, float] = {
@@ -143,8 +146,9 @@ class IFCTransformer:
         self.original_columns_: list[str] = []
         self.missing_counts_: dict[str, int] = {}
         self.missing_fractions_: dict[str, float] = {}
-        self.category_mappings_: dict[str, dict[str, int]] = {}
-        self.inverse_category_mappings_: dict[str, dict[int, str]] = {}
+        self._category_encoder = LabelCategoryEncoder()
+        self.category_mappings_ = self._category_encoder.category_mappings_
+        self.inverse_category_mappings_ = self._category_encoder.inverse_category_mappings_
         self._is_fitted: bool = False
 
     # ------------------------------------------------------------------
@@ -170,6 +174,55 @@ class IFCTransformer:
         ]
         return pd.DataFrame(rows)
 
+    def get_category_mappings(self, inverse: bool = False) -> dict[str, dict[Any, Any]]:
+        """Return a copy of the learned categorical label mappings.
+
+        Parameters
+        ----------
+        inverse:
+            If ``False`` (default), return ``{column: {category: code}}``.
+            If ``True``, return ``{column: {code: category}}``.
+
+        Returns
+        -------
+        dict[str, dict[Any, Any]]
+            A defensive copy of the requested mapping dictionary.
+        """
+        self._check_fitted()
+        return self._category_encoder.get_mappings(inverse=inverse)
+
+    def get_category_mapping(
+        self,
+        column: str,
+        inverse: bool = False,
+    ) -> dict[Any, Any]:
+        """Return a copy of the learned label mapping for one categorical column."""
+        self._check_fitted()
+        return self._category_encoder.get_mapping(column, inverse=inverse)
+
+    def save(self, path: str | Path) -> None:
+        """Save the fitted transformation state to a JSON file.
+
+        The saved state can be loaded on another machine with
+        :meth:`load` and used for :meth:`transform` or
+        :meth:`inverse_transform` without fitting again.
+        """
+        self._check_fitted()
+        state = self._to_state()
+        output_path = Path(path)
+        output_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+    @classmethod
+    def load(cls, path: str | Path) -> IFCTransformer:
+        """Load a fitted transformer state saved by :meth:`save`."""
+        input_path = Path(path)
+        state = json.loads(input_path.read_text(encoding="utf-8"))
+        if state.get("state_version") != _STATE_VERSION:
+            raise ValueError(
+                f"Unsupported IFCTransformer state version {state.get('state_version')!r}."
+            )
+        return cls._from_state(state)
+
     def fit(self, data: str | Path | pd.DataFrame) -> IFCTransformer:
         """Learn column types, fill values, and constant columns from *data*.
 
@@ -190,8 +243,9 @@ class IFCTransformer:
         self.fill_values_ = {}
         self.missing_counts_ = {}
         self.missing_fractions_ = {}
-        self.category_mappings_ = {}
-        self.inverse_category_mappings_ = {}
+        self._category_encoder.reset()
+        self.category_mappings_ = self._category_encoder.category_mappings_
+        self.inverse_category_mappings_ = self._category_encoder.inverse_category_mappings_
 
         n = len(df)
 
@@ -203,15 +257,24 @@ class IFCTransformer:
             self.missing_counts_[col] = n_missing
             self.missing_fractions_[col] = n_missing / n if n > 0 else 0.0
 
-            # Detect constant columns (≤1 unique non-null value)
+            # Determine type: user override takes priority over inference
+            col_type: ColType = self.col_types.get(col) or infer_col_type(series)  # type: ignore[assignment]
+
+            # Detect constant columns (≤1 unique non-null value). A categorical
+            # column with one observed category plus missing values is not
+            # constant when missingness is learned as its own category.
             unique_vals = series.dropna().unique()
-            if len(unique_vals) <= 1:
+            keep_missing_category = (
+                col_type == "categorical"
+                and self.cat_fill == "constant"
+                and len(unique_vals) == 1
+                and n_missing > 0
+            )
+            if len(unique_vals) <= 1 and not keep_missing_category:
                 const_val = unique_vals[0] if len(unique_vals) == 1 else np.nan
                 self.dropped_constants_[col] = (const_val, idx)
                 continue
 
-            # Determine type: user override takes priority over inference
-            col_type: ColType = self.col_types.get(col) or infer_col_type(series)  # type: ignore[assignment]
             self.column_types_[col] = col_type
 
             # Compute fill value
@@ -234,13 +297,12 @@ class IFCTransformer:
                     series.to_numpy(), self.cat_fill, self.cat_constant
                 )
                 if self.cat_encoding == "label":
-                    categories = self._filled_categorical(series, self.fill_values_[col])
-                    unique_categories = sorted(pd.unique(categories.astype(str)))
-                    mapping = {value: code for code, value in enumerate(unique_categories)}
-                    self.category_mappings_[col] = mapping
-                    self.inverse_category_mappings_[col] = {
-                        code: value for value, code in mapping.items()
-                    }
+                    filled = self._filled_categorical(series, self.fill_values_[col])
+                    self._category_encoder.fit_column(
+                        col,
+                        filled,
+                        fill_value=self.fill_values_[col],
+                    )
 
         self._is_fitted = True
         return self
@@ -300,10 +362,11 @@ class IFCTransformer:
             else:  # categorical
                 s = self._filled_categorical(series, fill_val)
                 if self.cat_encoding == "label":
-                    mapping = self.category_mappings_[col]
-                    fallback = mapping[str(fill_val)]
-                    codes = s.astype(str).map(mapping).fillna(fallback).to_numpy(dtype=np.int64)
-                    result[col] = pd.Series(codes, index=df.index, name=col)
+                    result[col] = self._category_encoder.transform_column(
+                        col,
+                        s,
+                        fallback_value=fill_val,
+                    )
                 else:
                     result[col] = pd.Categorical(s)
 
@@ -360,9 +423,12 @@ class IFCTransformer:
 
         # Decode label-encoded categorical columns before restoring structure.
         if self.cat_encoding == "label":
-            for col, inverse_mapping in self.inverse_category_mappings_.items():
+            for col in self.inverse_category_mappings_:
                 if col in result.columns:
-                    result[col] = self._decode_label_encoded(result[col], inverse_mapping)
+                    result[col] = self._category_encoder.inverse_transform_column(
+                        col,
+                        result[col],
+                    )
 
         # Convert the learned categorical missing category back to missing values.
         if self.cat_fill == "constant":
@@ -402,23 +468,114 @@ class IFCTransformer:
         s = s.where(~s.str.lower().isin(_NULL_SENTINELS), other=fill_val)
         return s.fillna(fill_val)
 
+    def _to_state(self) -> dict[str, Any]:
+        return {
+            "state_version": _STATE_VERSION,
+            "params": {
+                "col_types": self.col_types,
+                "int_fill": self.int_fill,
+                "float_fill": self.float_fill,
+                "cat_fill": self.cat_fill,
+                "cat_constant": self.cat_constant,
+                "cat_encoding": self.cat_encoding,
+                "datetime_anchor": self.datetime_anchor.isoformat(),
+                "datetime_unit": self.datetime_unit,
+            },
+            "fitted": {
+                "column_types": self.column_types_,
+                "fill_values": {
+                    col: self._serialize_value(value)
+                    for col, value in self.fill_values_.items()
+                },
+                "dropped_constants": {
+                    col: {
+                        "value": self._serialize_value(value),
+                        "position": position,
+                    }
+                    for col, (value, position) in self.dropped_constants_.items()
+                },
+                "original_columns": self.original_columns_,
+                "missing_counts": self.missing_counts_,
+                "missing_fractions": self.missing_fractions_,
+                "category_mappings": self.category_mappings_,
+            },
+        }
+
+    @classmethod
+    def _from_state(cls, state: dict[str, Any]) -> IFCTransformer:
+        params = state["params"]
+        transformer = cls(
+            col_types=params["col_types"],
+            int_fill=params["int_fill"],
+            float_fill=params["float_fill"],
+            cat_fill=params["cat_fill"],
+            cat_constant=params["cat_constant"],
+            cat_encoding=params["cat_encoding"],
+            datetime_anchor=params["datetime_anchor"],
+            datetime_unit=params["datetime_unit"],
+        )
+
+        fitted = state["fitted"]
+        transformer.column_types_ = dict(fitted["column_types"])
+        transformer.fill_values_ = {
+            col: cls._deserialize_value(value)
+            for col, value in fitted["fill_values"].items()
+        }
+        transformer.dropped_constants_ = {
+            col: (
+                cls._deserialize_value(payload["value"]),
+                int(payload["position"]),
+            )
+            for col, payload in fitted["dropped_constants"].items()
+        }
+        transformer.original_columns_ = list(fitted["original_columns"])
+        transformer.missing_counts_ = {
+            col: int(count) for col, count in fitted["missing_counts"].items()
+        }
+        transformer.missing_fractions_ = {
+            col: float(fraction)
+            for col, fraction in fitted["missing_fractions"].items()
+        }
+
+        transformer._category_encoder.reset()
+        transformer._category_encoder.category_mappings_ = {
+            col: {str(category): int(code) for category, code in mapping.items()}
+            for col, mapping in fitted["category_mappings"].items()
+        }
+        transformer._category_encoder.inverse_category_mappings_ = {
+            col: {code: category for category, code in mapping.items()}
+            for col, mapping in transformer._category_encoder.category_mappings_.items()
+        }
+        transformer.category_mappings_ = transformer._category_encoder.category_mappings_
+        transformer.inverse_category_mappings_ = (
+            transformer._category_encoder.inverse_category_mappings_
+        )
+        transformer._is_fitted = True
+        return transformer
+
     @staticmethod
-    def _decode_label_encoded(
-        series: pd.Series,
-        inverse_mapping: dict[int, str],
-    ) -> pd.Series:
-        codes = pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
-        max_code = max(inverse_mapping)
-        decoded: list[str] = []
+    def _serialize_value(value: Any) -> dict[str, Any]:
+        if pd.isna(value):
+            return {"type": "missing", "value": None}
+        if isinstance(value, pd.Timestamp):
+            return {"type": "timestamp", "value": value.isoformat()}
+        if isinstance(value, np.integer):
+            return {"type": "int", "value": int(value)}
+        if isinstance(value, np.floating):
+            return {"type": "float", "value": float(value)}
+        if isinstance(value, np.bool_):
+            return {"type": "bool", "value": bool(value)}
+        return {"type": "python", "value": value}
 
-        for code in codes:
-            if np.isnan(code):
-                clipped_code = 0
-            else:
-                clipped_code = int(np.clip(np.round(code), 0, max_code))
-            decoded.append(inverse_mapping[clipped_code])
-
-        return pd.Series(decoded, index=series.index, name=series.name)
+    @staticmethod
+    def _deserialize_value(payload: dict[str, Any]) -> Any:
+        value_type = payload["type"]
+        value = payload["value"]
+        if value_type == "missing":
+            return np.nan
+        if value_type == "timestamp":
+            return pd.Timestamp(value)
+        return value
 
     def _check_fitted(self) -> None:
         if not self._is_fitted:

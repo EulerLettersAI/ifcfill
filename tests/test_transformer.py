@@ -186,6 +186,46 @@ def test_label_encoding_mapping_is_tracked(sample_df):
     }
 
 
+def test_label_encoding_includes_constant_fill_category_without_fit_missing():
+    fit_df = pd.DataFrame({"city": ["London", "Paris", "London"]})
+    transform_df = pd.DataFrame({"city": ["London", None, "Paris"]})
+    tf = IFCTransformer(cat_encoding="label", cat_fill="constant", cat_constant="missing")
+
+    tf.fit(fit_df)
+    transformed = tf.transform(transform_df)
+
+    assert tf.category_mappings_["city"] == {
+        "London": 0,
+        "Paris": 1,
+        "missing": 2,
+    }
+    assert transformed["city"].iloc[1] == tf.category_mappings_["city"]["missing"]
+
+
+def test_label_encoding_keeps_single_category_plus_missing():
+    df = pd.DataFrame({"city": ["London", None, "London"]})
+    tf = IFCTransformer(cat_encoding="label", cat_fill="constant", cat_constant="missing")
+
+    transformed = tf.fit_transform(df)
+
+    assert "city" not in tf.dropped_constants_
+    assert tf.category_mappings_["city"] == {"London": 0, "missing": 1}
+    assert list(transformed["city"]) == [0, 1, 0]
+
+
+def test_category_mapping_accessors_return_copies(sample_df):
+    tf = IFCTransformer(cat_encoding="label")
+    tf.fit(sample_df)
+
+    mappings = tf.get_category_mappings()
+    inverse_mapping = tf.get_category_mapping("city", inverse=True)
+    mappings["city"]["Berlin"] = 99
+    inverse_mapping[99] = "Berlin"
+
+    assert "Berlin" not in tf.category_mappings_["city"]
+    assert 99 not in tf.inverse_category_mappings_["city"]
+
+
 def test_label_encoding_inverse_restores_categories(sample_df):
     tf = IFCTransformer(cat_encoding="label")
     transformed = tf.fit_transform(sample_df)
@@ -364,6 +404,41 @@ def test_inverse_no_restore_missing_has_no_nan_in_non_const(fitted, sample_df):
     ]
     for col in non_const:
         assert restored[col].isna().sum() == 0, f"{col} should have no NaN"
+
+
+def test_save_and_load_preserves_inverse_transform_state(tmp_path, sample_df):
+    tf = IFCTransformer(cat_encoding="label", cat_fill="constant", cat_constant="missing")
+    transformed = tf.fit_transform(sample_df)
+    state_file = tmp_path / "ifcfill-state.json"
+
+    tf.save(state_file)
+    loaded = IFCTransformer.load(state_file)
+    restored = loaded.inverse_transform(transformed)
+
+    assert loaded.category_mappings_ == tf.category_mappings_
+    assert loaded.inverse_category_mappings_ == tf.inverse_category_mappings_
+    assert list(restored.columns) == list(sample_df.columns)
+    assert list(restored["city"].iloc[[0, 2, 3]]) == ["London", "Paris", "London"]
+    assert pd.isna(restored["city"].iloc[1])
+    assert (restored["const"] == "x").all()
+
+
+def test_save_and_load_preserves_transform_state(tmp_path, sample_df):
+    tf = IFCTransformer(cat_encoding="label")
+    tf.fit(sample_df)
+    state_file = tmp_path / "ifcfill-state.json"
+    new_df = sample_df.copy()
+    new_df.loc[0, "city"] = "Berlin"
+
+    tf.save(state_file)
+    loaded = IFCTransformer.load(state_file)
+
+    pd.testing.assert_frame_equal(loaded.transform(new_df), tf.transform(new_df))
+
+
+def test_save_before_fit_raises(tmp_path):
+    with pytest.raises(RuntimeError, match="not fitted"):
+        IFCTransformer().save(tmp_path / "ifcfill-state.json")
 
 
 # ---------------------------------------------------------------------------
