@@ -33,7 +33,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-polars = ["polars>=1.0"]
+examples = [
+    "notebook>=7.0",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",

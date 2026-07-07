@@ -42,4 +42,5 @@ restored = tf.inverse_transform(transformed, restore_missing=True, random_state=
 ---
 
 [Get started →](getting-started.md){ .md-button .md-button--primary }
+[Examples →](examples.md){ .md-button }
 [API Reference →](api.md){ .md-button }

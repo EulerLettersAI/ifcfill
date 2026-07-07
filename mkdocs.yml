@@ -59,6 +59,7 @@ plugins:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Examples: examples.md
   - User Guide: user-guide.md
   - API Reference: api.md
   - Changelog: changelog.md

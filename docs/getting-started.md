@@ -14,12 +14,6 @@ Install from PyPI:
 pip install ifcfill
 ```
 
-To install with optional Polars support:
-
-```bash
-pip install "ifcfill[polars]"
-```
-
 To install documentation build tools:
 
 ```bash
@@ -116,5 +110,6 @@ print(restored)
 
 ## Next Steps
 
+- [Examples](examples.md) — notebook walkthrough of the main workflow
 - [User Guide](user-guide.md) — detailed walkthrough of every feature
 - [API Reference](api.md) — complete parameter and return-type documentation
