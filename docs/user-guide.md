@@ -1,5 +1,38 @@
 # User Guide
 
+## Synthetic-data workflow
+
+`ifcfill` is intended for tabular synthetic-data generation workflows. It learns
+all transformation rules from real data, then uses those same learned rules to
+map both transformed real data and generated synthetic data back to the original
+table structure.
+
+The typical workflow is:
+
+1. Fit `IFCTransformer` on real data.
+2. Transform the real data into IFC variables.
+3. Use any tabular generator to produce synthetic data in the transformed IFC
+   space.
+4. Call `inverse_transform()` on the synthetic output using the same fitted
+   transformer.
+
+```python
+tf = IFCTransformer(cat_encoding="label")
+
+real_ifc = tf.fit_transform(real_df)
+
+# Train or run your synthetic-data generator on real_ifc.
+# synthetic_ifc = generator.sample(...)
+
+synthetic_df = tf.inverse_transform(synthetic_ifc)
+```
+
+`ifcfill` is intentionally unsupervised. It does not require a target variable,
+and it avoids target-aware encodings so the same transformation contract can be
+used across different tabular generators.
+
+---
+
 ## Input formats
 
 `IFCTransformer` accepts two input formats in `fit()`, `transform()`, and `fit_transform()`:
@@ -66,8 +99,12 @@ tf = IFCTransformer(
 
 | Strategy | Fill value |
 |---|---|
-| `"mode"` *(default)* | Most frequent non-null value |
-| `"constant"` | The string supplied in `cat_constant` (default `"missing"`) |
+| `"constant"` *(default)* | The string supplied in `cat_constant` (default `"missing"`) |
+| `"mode"` | Most frequent non-null value |
+
+The default categorical strategy treats missing categorical values as their own
+learnable category. If a generator later emits that category, `inverse_transform()`
+converts it back to a missing value.
 
 ```python
 tf = IFCTransformer(
@@ -83,7 +120,8 @@ tf = IFCTransformer(
 ## Categorical encoding
 
 By default, categorical columns are returned as pandas categoricals after
-missing values are filled:
+missing values are filled. Missing categorical values are represented by the
+learned missing category:
 
 ```python
 tf = IFCTransformer(cat_encoding="none")  # default
@@ -111,7 +149,8 @@ tf.inverse_category_mappings_  # dict: column -> {code -> category}
 `inverse_transform()` decodes label-encoded columns back to their original
 category values. This is designed for unsupervised synthetic-data workflows:
 generated numeric category codes are rounded to the nearest integer and clipped
-to the known code range before decoding.
+to the known code range before decoding. If the decoded value is the learned
+categorical missing category, it is converted back to a missing value.
 
 !!! note
     `ifcfill` intentionally does not include target-aware encodings. Encodings
@@ -195,20 +234,23 @@ Example report:
 
 1. **Re-inserts** dropped constant columns with their original values
 2. **Reorders** columns to match the original input order
-3. **Optionally re-introduces** missing values at the same rates as the original data
-4. **Decodes** label-encoded categorical columns when `cat_encoding="label"`
+3. **Decodes** label-encoded categorical columns when `cat_encoding="label"`
+4. **Converts** learned categorical missing categories back to missing values
+5. **Optionally re-introduces** non-categorical missing values at the same rates as the original data
 
 ```python
 restored = tf.inverse_transform(
     transformed_df,
-    restore_missing=True,  # re-introduce NaN proportionally
+    restore_missing=True,  # statistical restoration for imputed non-categoricals
     random_state=0,        # make it reproducible
 )
 ```
 
 !!! note
-    `inverse_transform()` does **not** reverse numeric casting or imputation — it
-    restores structure (column presence and order), not exact original values.
+    For categorical columns with `cat_fill="constant"`, missingness is restored
+    deterministically when the missing category appears. For numeric and datetime
+    columns, `restore_missing=True` statistically reintroduces missing values at
+    the rates learned during `fit()`.
 
 ---
 

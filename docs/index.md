@@ -1,8 +1,14 @@
 # ifcfill
 
-**ifcfill** transforms tabular data into **I**nteger, **F**loat, and **C**ategorical (IFC)
-variables, fills missing values using fast NumPy operations, and keeps a full audit trail
-of every transformation so you can restore the original table structure at any time.
+**ifcfill** prepares tabular data for synthetic-data generation. It transforms
+real data into **I**nteger, **F**loat, and **C**ategorical (IFC) variables, fills
+missing values using fast NumPy operations, and keeps the metadata needed to map
+generated synthetic data back to the original table structure.
+
+`ifcfill` is intentionally unsupervised. It does not require a target variable;
+instead, it learns transformation and inverse-transformation rules from the real
+data so the same inverse rules can be applied to synthetic outputs from any
+tabular generator.
 
 ---
 
@@ -14,11 +20,13 @@ of every transformation so you can restore the original table structure at any t
 | Automatic type inference | Detects integer, float, categorical, and datetime columns |
 | Per-column type overrides | Force a specific type for any column |
 | Configurable imputation | Independent strategy per type (mean, median, mode, zero, constant) |
+| Categorical missingness | Treats missing categorical values as a learnable category and restores them on inverse transform |
 | Categorical label encoding | Optionally encode categories as integer codes with inverse mappings |
 | Datetime conversion | Date/time → integer relative to a configurable anchor |
 | Constant column removal | Silently drops columns with a single unique value |
 | Missing value tracking | Records count and fraction per column via `missing_report_` |
-| Inverse transform | Restores constants, column order, and optional missing-value distribution |
+| Inverse transform | Restores constants, column order, categorical missing values, and optional non-categorical missing-value distribution |
+| Generator support | Fit on real data, transform for a generator, inverse-transform generated synthetic data |
 
 ---
 
@@ -34,10 +42,11 @@ pip install ifcfill
 from ifcfill import IFCTransformer
 
 tf = IFCTransformer()
-transformed = tf.fit_transform("data.csv")
+real_ifc = tf.fit_transform("real_data.csv")
 print(tf.missing_report_)
 
-restored = tf.inverse_transform(transformed, restore_missing=True, random_state=0)
+# synthetic_ifc is produced by your tabular synthetic-data generator
+synthetic_restored = tf.inverse_transform(synthetic_ifc)
 ```
 
 ---

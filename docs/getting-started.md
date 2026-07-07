@@ -49,7 +49,7 @@ Output:
 ```
    age       salary    city  joined
 0   25   50000.500  London   18262
-1   30   71666.917  London   18793
+1   30   71666.917  missing  18793
 2   30   75000.000   Paris   19063    ← NaT filled with median
 3   40   90000.250  London   19426
 ```
@@ -100,7 +100,7 @@ print(tf.missing_report_)
 ```python
 restored = tf.inverse_transform(
     transformed,
-    restore_missing=True,   # re-introduce NaN proportionally
+    restore_missing=True,   # statistical restoration for imputed non-categoricals
     random_state=42,        # reproducible
 )
 print(restored)

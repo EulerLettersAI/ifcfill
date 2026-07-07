@@ -62,8 +62,9 @@ class IFCTransformer:
         One of ``"mean"``, ``"median"``, ``"mode"``, ``"zero"``.
     cat_fill:
         Strategy for filling missing values in categorical columns.
-        ``"mode"`` uses the most frequent value; ``"constant"`` uses
-        *cat_constant*.
+        ``"constant"`` uses *cat_constant* so categorical missingness can be
+        learned by a synthetic-data generator as its own category. ``"mode"``
+        uses the most frequent value.
     cat_constant:
         Fill string used when *cat_fill* is ``"constant"``.
     cat_encoding:
@@ -110,7 +111,7 @@ class IFCTransformer:
         col_types: dict[str, ColType] | None = None,
         int_fill: Literal["mean", "median", "mode", "zero"] = "median",
         float_fill: Literal["mean", "median", "mode", "zero"] = "mean",
-        cat_fill: Literal["mode", "constant"] = "mode",
+        cat_fill: Literal["mode", "constant"] = "constant",
         cat_constant: str = "missing",
         cat_encoding: Literal["none", "label"] = "none",
         datetime_anchor: str | pd.Timestamp = "1970-01-01",
@@ -324,17 +325,23 @@ class IFCTransformer:
 
         1. Re-inserts dropped constant columns at their original positions.
         2. Reorders columns to match the original input order.
-        3. (Optional) Randomly replaces values with ``NaN`` in each
-           non-constant column at the same rate as the original missing
-           fraction, recreating the original missing-data distribution.
+        3. Decodes label-encoded categorical columns when enabled.
+        4. Converts the learned categorical missing category back to ``NaN``
+           when ``cat_fill="constant"``.
+        5. (Optional) Randomly replaces values with ``NaN`` in each
+           non-categorical, non-constant column at the same rate as the
+           original missing fraction.
 
         Parameters
         ----------
         data:
             A DataFrame produced by :meth:`transform` (or a CSV of one).
         restore_missing:
-            If ``True``, randomly introduce ``NaN`` values proportional to
-            the missing fractions recorded during :meth:`fit`.
+            If ``True``, randomly introduce ``NaN`` values in non-categorical
+            columns proportional to the missing fractions recorded during
+            :meth:`fit`. Categorical missing values represented by the learned
+            missing category are restored deterministically regardless of this
+            setting.
         random_state:
             Integer seed or :class:`numpy.random.Generator` for reproducible
             missing-value restoration.
@@ -357,6 +364,12 @@ class IFCTransformer:
                 if col in result.columns:
                     result[col] = self._decode_label_encoded(result[col], inverse_mapping)
 
+        # Convert the learned categorical missing category back to missing values.
+        if self.cat_fill == "constant":
+            for col, col_type in self.column_types_.items():
+                if col_type == "categorical" and col in result.columns:
+                    result[col] = result[col].replace(str(self.fill_values_[col]), np.nan)
+
         # Reorder to original column order (only columns present)
         available = [c for c in self.original_columns_ if c in result.columns]
         result = result[available]
@@ -366,6 +379,8 @@ class IFCTransformer:
             n = len(result)
             for col in available:
                 if col in self.dropped_constants_:
+                    continue
+                if self.column_types_.get(col) == "categorical":
                     continue
                 frac = self.missing_fractions_.get(col, 0.0)
                 if frac > 0.0 and n > 0:

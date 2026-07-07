@@ -177,10 +177,12 @@ def test_label_encoding_mapping_is_tracked(sample_df):
     assert tf.category_mappings_["city"] == {
         "London": 0,
         "Paris": 1,
+        "missing": 2,
     }
     assert tf.inverse_category_mappings_["city"] == {
         0: "London",
         1: "Paris",
+        2: "missing",
     }
 
 
@@ -188,7 +190,8 @@ def test_label_encoding_inverse_restores_categories(sample_df):
     tf = IFCTransformer(cat_encoding="label")
     transformed = tf.fit_transform(sample_df)
     restored = tf.inverse_transform(transformed)
-    assert list(restored["city"]) == ["London", "London", "Paris", "London"]
+    assert list(restored["city"].iloc[[0, 2, 3]]) == ["London", "Paris", "London"]
+    assert pd.isna(restored["city"].iloc[1])
 
 
 def test_label_encoding_inverse_rounds_and_clips_generated_codes(sample_df):
@@ -197,7 +200,8 @@ def test_label_encoding_inverse_rounds_and_clips_generated_codes(sample_df):
     generated = transformed.copy()
     generated["city"] = [-1.4, 0.2, 0.8, 99.0]
     restored = tf.inverse_transform(generated)
-    assert list(restored["city"]) == ["London", "London", "Paris", "Paris"]
+    assert list(restored["city"].iloc[:3]) == ["London", "London", "Paris"]
+    assert pd.isna(restored["city"].iloc[3])
 
 
 def test_label_encoding_transform_unseen_category_uses_fill_value(sample_df):
@@ -206,7 +210,23 @@ def test_label_encoding_transform_unseen_category_uses_fill_value(sample_df):
     new_df = sample_df.copy()
     new_df.loc[0, "city"] = "Berlin"
     transformed = tf.transform(new_df)
-    assert transformed["city"].iloc[0] == tf.category_mappings_["city"]["London"]
+    assert transformed["city"].iloc[0] == tf.category_mappings_["city"]["missing"]
+
+
+def test_categorical_missing_category_inverts_to_nan(sample_df):
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(sample_df)
+    assert transformed["city"].iloc[1] == "missing"
+    restored = tf.inverse_transform(transformed)
+    assert pd.isna(restored["city"].iloc[1])
+
+
+def test_custom_categorical_missing_category_inverts_to_nan(sample_df):
+    tf = IFCTransformer(cat_fill="constant", cat_constant="UNKNOWN")
+    transformed = tf.fit_transform(sample_df)
+    assert transformed["city"].iloc[1] == "UNKNOWN"
+    restored = tf.inverse_transform(transformed)
+    assert pd.isna(restored["city"].iloc[1])
 
 
 # ---------------------------------------------------------------------------
@@ -334,8 +354,14 @@ def test_inverse_restore_missing_reproducible(fitted, sample_df):
 def test_inverse_no_restore_missing_has_no_nan_in_non_const(fitted, sample_df):
     transformed = fitted.transform(sample_df)
     restored = fitted.inverse_transform(transformed, restore_missing=False)
-    # Only the re-added constant columns; non-constant columns should have no NaN
-    non_const = [c for c in restored.columns if c not in fitted.dropped_constants_]
+    # Categorical missing values are restored deterministically from the learned
+    # missing category. Numeric/datetime columns should not get statistical NaNs.
+    assert pd.isna(restored["city"].iloc[1])
+    non_const = [
+        c
+        for c in restored.columns
+        if c not in fitted.dropped_constants_ and fitted.column_types_.get(c) != "categorical"
+    ]
     for col in non_const:
         assert restored[col].isna().sum() == 0, f"{col} should have no NaN"
 
