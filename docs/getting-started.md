@@ -14,10 +14,10 @@ Install from PyPI:
 pip install ifcfill
 ```
 
-To install documentation build tools:
+To install the optional notebook dependencies for the examples:
 
 ```bash
-pip install "ifcfill[docs]"
+pip install "ifcfill[examples]"
 ```
 
 ---

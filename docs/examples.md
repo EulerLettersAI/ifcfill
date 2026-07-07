@@ -19,11 +19,11 @@ The notebooks cover:
 To run the notebooks:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
 pip install "ifcfill[examples]"
 jupyter notebook
 ```
+
+Run these commands in your preferred Python environment.
 
 The base install stays lean:
 
