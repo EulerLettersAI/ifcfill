@@ -1136,7 +1136,7 @@ Other columns are still inferred automatically.</p>
 <tbody>
 <tr>
 <td><code>"constant"</code> <em>(default)</em></td>
-<td>The string supplied in <code>cat_constant</code> (default <code>"missing"</code>)</td>
+<td>The string supplied in <code>cat_constant</code> (default <code>"__ifcfill_missing__"</code>)</td>
 </tr>
 <tr>
 <td><code>"mode"</code></td>
@@ -1147,6 +1147,8 @@ Other columns are still inferred automatically.</p>
 <p>The default categorical strategy treats missing categorical values as their own
 learnable category. If a generator later emits that category, <code>inverse_transform()</code>
 converts it back to a missing value.</p>
+<p>The default sentinel is deliberately namespaced as <code>"__ifcfill_missing__"</code> to
+reduce collisions with real categories such as <code>"missing"</code> or <code>"unknown"</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">int_fill</span><span class="o">=</span><span class="s2">&quot;mean&quot;</span><span class="p">,</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">float_fill</span><span class="o">=</span><span class="s2">&quot;median&quot;</span><span class="p">,</span>

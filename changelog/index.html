@@ -762,6 +762,8 @@ This project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic V
   for transform/inverse-transform workflows on another machine.</li>
 <li>Categorical missing values are represented as a learnable category by default
   and converted back to missing values during <code>inverse_transform()</code>.</li>
+<li>The default categorical missing category is now <code>__ifcfill_missing__</code> to
+  reduce collisions with real categories.</li>
 <li>Label encoding is applied after categorical filling so learned fill
   categories are included in the mapping.</li>
 <li>Categorical columns with one observed category plus missing values are kept
