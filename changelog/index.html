@@ -580,6 +580,45 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#030-2026-07-07" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.3.0] — 2026-07-07
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.3.0] — 2026-07-07">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#020-2026-07-07" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -592,7 +631,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added" class="md-nav__link">
+  <a href="#added_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -620,7 +659,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added_1" class="md-nav__link">
+  <a href="#added_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -670,6 +709,45 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#030-2026-07-07" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.3.0] — 2026-07-07
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.3.0] — 2026-07-07">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#020-2026-07-07" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -682,7 +760,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added" class="md-nav__link">
+  <a href="#added_1" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -710,7 +788,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added_1" class="md-nav__link">
+  <a href="#added_2" class="md-nav__link">
     <span class="md-ellipsis">
       
         Added
@@ -750,28 +828,36 @@
 <p>The format follows <a href="https://keepachangelog.com/en/1.0.0/">Keep a Changelog</a>.
 This project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
 <hr />
-<h2 id="020-2026-07-07">[0.2.0] — 2026-07-07<a class="headerlink" href="#020-2026-07-07" title="Permanent link">&para;</a></h2>
+<h2 id="030-2026-07-07">[0.3.0] — 2026-07-07<a class="headerlink" href="#030-2026-07-07" title="Permanent link">&para;</a></h2>
 <h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Optional categorical label encoding via <code>cat_encoding="label"</code>.</li>
-<li>Category mapping attributes for inverse-compatible label encoding:
-  <code>category_mappings_</code> and <code>inverse_category_mappings_</code>.</li>
 <li>Category mapping accessors:
   <code>get_category_mappings()</code> and <code>get_category_mapping(...)</code>.</li>
 <li>Portable fitted-state persistence with <code>save()</code> and <code>IFCTransformer.load()</code>
   for transform/inverse-transform workflows on another machine.</li>
-<li>Categorical missing values are represented as a learnable category by default
-  and converted back to missing values during <code>inverse_transform()</code>.</li>
+</ul>
+<h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">&para;</a></h3>
+<ul>
 <li>The default categorical missing category is now <code>__ifcfill_missing__</code> to
   reduce collisions with real categories.</li>
-<li>Label encoding is applied after categorical filling so learned fill
-  categories are included in the mapping.</li>
+<li>Label encoding now runs as a separate layer after categorical filling so
+  learned fill categories are included in the mapping.</li>
 <li>Categorical columns with one observed category plus missing values are kept
   when <code>cat_fill="constant"</code> because the missing category is learnable.</li>
 </ul>
 <hr />
-<h2 id="010-2026-03-27">[0.1.0] — 2026-03-27<a class="headerlink" href="#010-2026-03-27" title="Permanent link">&para;</a></h2>
+<h2 id="020-2026-07-07">[0.2.0] — 2026-07-07<a class="headerlink" href="#020-2026-07-07" title="Permanent link">&para;</a></h2>
 <h3 id="added_1">Added<a class="headerlink" href="#added_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Optional categorical label encoding via <code>cat_encoding="label"</code>.</li>
+<li>Category mapping attributes for inverse-compatible label encoding:
+  <code>category_mappings_</code> and <code>inverse_category_mappings_</code>.</li>
+<li>Categorical missing values are represented as a learnable category by default
+  and converted back to missing values during <code>inverse_transform()</code>.</li>
+</ul>
+<hr />
+<h2 id="010-2026-03-27">[0.1.0] — 2026-03-27<a class="headerlink" href="#010-2026-03-27" title="Permanent link">&para;</a></h2>
+<h3 id="added_2">Added<a class="headerlink" href="#added_2" title="Permanent link">&para;</a></h3>
 <ul>
 <li><code>IFCTransformer</code> class with <code>fit()</code>, <code>transform()</code>, <code>fit_transform()</code>, and <code>inverse_transform()</code>.</li>
 <li>Automatic type inference for integer, float, categorical, and datetime columns.</li>
