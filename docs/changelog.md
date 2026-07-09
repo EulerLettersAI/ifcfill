@@ -7,6 +7,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.3.2] — 2026-07-09
+
+### Added
+
+- Parallel per-column processing via the `n_jobs` constructor argument for
+  `fit()` and `transform()`.
+- Support for joblib-style negative `n_jobs` values, including `n_jobs=-1` to
+  use all available CPUs.
+
+---
+
 ## [0.3.1] — 2026-07-08
 
 ### Fixed
