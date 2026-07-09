@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Literal
 
@@ -87,6 +89,10 @@ class IFCTransformer:
         categorical values first, then maps each completed category to an
         integer code through a separate encoder layer and stores mappings for
         :meth:`inverse_transform`.
+    n_jobs:
+        Number of worker threads to use for per-column ``fit`` and
+        ``transform`` work. ``None`` or ``1`` runs sequentially. Negative values
+        follow the joblib convention, so ``-1`` uses all available CPUs.
     datetime_anchor:
         Reference date for datetime-to-integer conversion.
         Defaults to the Unix epoch ``"1970-01-01"``.
@@ -129,6 +135,7 @@ class IFCTransformer:
         cat_fill: Literal["mode", "constant"] = "constant",
         cat_constant: str = DEFAULT_CAT_CONSTANT,
         cat_encoding: Literal["none", "label"] = "none",
+        n_jobs: int | None = 1,
         datetime_anchor: str | pd.Timestamp = "1970-01-01",
         datetime_unit: Literal["D", "s", "ms", "us", "ns"] = "D",
     ) -> None:
@@ -148,6 +155,8 @@ class IFCTransformer:
         self.cat_fill = cat_fill
         self.cat_constant = cat_constant
         self.cat_encoding = cat_encoding
+        self.n_jobs = n_jobs
+        self._effective_n_jobs()
         self.datetime_anchor = pd.Timestamp(datetime_anchor)
         self.datetime_unit = datetime_unit
 
@@ -261,60 +270,29 @@ class IFCTransformer:
 
         n = len(df)
 
-        for idx, col in enumerate(df.columns):
-            series = df[col]
+        tasks = [(idx, col, df[col], n) for idx, col in enumerate(df.columns)]
+        for result in self._map_columns(self._fit_column, tasks):
+            col = result["column"]
+            self.missing_counts_[col] = result["missing_count"]
+            self.missing_fractions_[col] = result["missing_fraction"]
 
-            # Track missing values for all columns
-            n_missing = int(series.isna().sum())
-            self.missing_counts_[col] = n_missing
-            self.missing_fractions_[col] = n_missing / n if n > 0 else 0.0
-
-            # Determine type: user override takes priority over inference
-            col_type: ColType = self.col_types.get(col) or infer_col_type(series)  # type: ignore[assignment]
-
-            # Detect constant columns (≤1 unique non-null value). A categorical
-            # column with one observed category plus missing values is not
-            # constant when missingness is learned as its own category.
-            unique_vals = series.dropna().unique()
-            keep_missing_category = (
-                col_type == "categorical"
-                and self.cat_fill == "constant"
-                and len(unique_vals) == 1
-                and n_missing > 0
-            )
-            if len(unique_vals) <= 1 and not keep_missing_category:
-                const_val = unique_vals[0] if len(unique_vals) == 1 else np.nan
-                self.dropped_constants_[col] = (const_val, idx)
+            if result["is_constant"]:
+                self.dropped_constants_[col] = (
+                    result["constant_value"],
+                    result["position"],
+                )
                 continue
 
+            col_type = result["column_type"]
             self.column_types_[col] = col_type
+            self.fill_values_[col] = result["fill_value"]
 
-            # Compute fill value
-            if col_type == "datetime":
-                arr = _datetime_to_numeric(series, self.datetime_anchor, self.datetime_unit)
-                valid = arr[~np.isnan(arr)]
-                raw = float(np.median(valid)) if valid.size > 0 else 0.0
-                self.fill_values_[col] = int(np.round(raw))
-
-            elif col_type == "integer":
-                arr = pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
-                self.fill_values_[col] = compute_fill_integer(arr, self.int_fill)
-
-            elif col_type == "float":
-                arr = pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
-                self.fill_values_[col] = compute_fill_float(arr, self.float_fill)
-
-            else:  # categorical
-                self.fill_values_[col] = compute_fill_categorical(
-                    series.to_numpy(), self.cat_fill, self.cat_constant
-                )
-                if self.cat_encoding == "label":
-                    filled = self._filled_categorical(series, self.fill_values_[col])
-                    self._category_encoder.fit_column(
-                        col,
-                        filled,
-                        fill_value=self.fill_values_[col],
-                    )
+            category_mapping = result.get("category_mapping")
+            if category_mapping is not None:
+                self._category_encoder.category_mappings_[col] = category_mapping
+                self._category_encoder.inverse_category_mappings_[col] = {
+                    code: value for value, code in category_mapping.items()
+                }
 
         self._is_fitted = True
         return self
@@ -340,47 +318,12 @@ class IFCTransformer:
         """
         self._check_fitted()
         df = load_to_dataframe(data)
-        result: dict[str, pd.Series] = {}
+        result: dict[str, pd.Series | pd.Categorical] = {}
 
-        for col in df.columns:
-            # Drop constant columns
-            if col in self.dropped_constants_:
-                continue
-
-            # Pass through columns unseen during fit
-            if col not in self.column_types_:
-                result[col] = df[col]
-                continue
-
-            col_type = self.column_types_[col]
-            fill_val = self.fill_values_[col]
-            series = df[col]
-
-            if col_type == "datetime":
-                arr = _datetime_to_numeric(series, self.datetime_anchor, self.datetime_unit)
-                arr = np.where(np.isnan(arr), fill_val, arr)
-                result[col] = pd.Series(arr.astype(np.int64), index=df.index, name=col)
-
-            elif col_type == "integer":
-                arr = pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
-                arr = np.where(np.isnan(arr), fill_val, arr)
-                result[col] = pd.Series(arr.astype(np.int64), index=df.index, name=col)
-
-            elif col_type == "float":
-                arr = pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
-                arr = np.where(np.isnan(arr), fill_val, arr)
-                result[col] = pd.Series(arr.astype(np.float64), index=df.index, name=col)
-
-            else:  # categorical
-                s = self._filled_categorical(series, fill_val)
-                if self.cat_encoding == "label":
-                    result[col] = self._category_encoder.transform_column(
-                        col,
-                        s,
-                        fallback_value=fill_val,
-                    )
-                else:
-                    result[col] = pd.Categorical(s)
+        tasks = [(col, df[col], df.index) for col in df.columns]
+        for col, transformed in self._map_columns(self._transform_column, tasks):
+            if transformed is not None:
+                result[col] = transformed
 
         return pd.DataFrame(result, index=df.index)
 
@@ -492,6 +435,128 @@ class IFCTransformer:
         s = s.where(~s.str.lower().isin(_NULL_SENTINELS), other=fill_val)
         return s.fillna(fill_val)
 
+    def _fit_column(
+        self,
+        task: tuple[int, str, pd.Series, int],
+    ) -> dict[str, Any]:
+        idx, col, series, n = task
+
+        n_missing = int(series.isna().sum())
+        missing_fraction = n_missing / n if n > 0 else 0.0
+
+        col_type: ColType = self.col_types.get(col) or infer_col_type(series)  # type: ignore[assignment]
+
+        unique_vals = series.dropna().unique()
+        keep_missing_category = (
+            col_type == "categorical"
+            and self.cat_fill == "constant"
+            and len(unique_vals) == 1
+            and n_missing > 0
+        )
+        if len(unique_vals) <= 1 and not keep_missing_category:
+            const_val = unique_vals[0] if len(unique_vals) == 1 else np.nan
+            return {
+                "column": col,
+                "position": idx,
+                "missing_count": n_missing,
+                "missing_fraction": missing_fraction,
+                "is_constant": True,
+                "constant_value": const_val,
+            }
+
+        if col_type == "datetime":
+            arr = _datetime_to_numeric(series, self.datetime_anchor, self.datetime_unit)
+            valid = arr[~np.isnan(arr)]
+            raw = float(np.median(valid)) if valid.size > 0 else 0.0
+            fill_value = int(np.round(raw))
+        elif col_type == "integer":
+            arr = pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
+            fill_value = compute_fill_integer(arr, self.int_fill)
+        elif col_type == "float":
+            arr = pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
+            fill_value = compute_fill_float(arr, self.float_fill)
+        else:
+            fill_value = compute_fill_categorical(
+                series.to_numpy(), self.cat_fill, self.cat_constant
+            )
+
+        result: dict[str, Any] = {
+            "column": col,
+            "position": idx,
+            "missing_count": n_missing,
+            "missing_fraction": missing_fraction,
+            "is_constant": False,
+            "column_type": col_type,
+            "fill_value": fill_value,
+        }
+
+        if col_type == "categorical" and self.cat_encoding == "label":
+            filled = self._filled_categorical(series, fill_value)
+            categories = LabelCategoryEncoder._categories(filled, fill_value)
+            result["category_mapping"] = {
+                value: code for code, value in enumerate(categories)
+            }
+
+        return result
+
+    def _transform_column(
+        self,
+        task: tuple[str, pd.Series, pd.Index],
+    ) -> tuple[str, pd.Series | pd.Categorical | None]:
+        col, series, index = task
+
+        if col in self.dropped_constants_:
+            return col, None
+
+        if col not in self.column_types_:
+            return col, series
+
+        col_type = self.column_types_[col]
+        fill_val = self.fill_values_[col]
+
+        if col_type == "datetime":
+            arr = _datetime_to_numeric(series, self.datetime_anchor, self.datetime_unit)
+            arr = np.where(np.isnan(arr), fill_val, arr)
+            return col, pd.Series(arr.astype(np.int64), index=index, name=col)
+
+        if col_type == "integer":
+            arr = pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
+            arr = np.where(np.isnan(arr), fill_val, arr)
+            return col, pd.Series(arr.astype(np.int64), index=index, name=col)
+
+        if col_type == "float":
+            arr = pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
+            arr = np.where(np.isnan(arr), fill_val, arr)
+            return col, pd.Series(arr.astype(np.float64), index=index, name=col)
+
+        s = self._filled_categorical(series, fill_val)
+        if self.cat_encoding == "label":
+            return col, self._category_encoder.transform_column(
+                col,
+                s,
+                fallback_value=fill_val,
+            )
+        return col, pd.Categorical(s)
+
+    def _map_columns(self, func: Any, tasks: list[Any]) -> list[Any]:
+        n_jobs = self._effective_n_jobs()
+        if n_jobs == 1 or len(tasks) <= 1:
+            return [func(task) for task in tasks]
+
+        with ThreadPoolExecutor(max_workers=n_jobs) as executor:
+            return list(executor.map(func, tasks))
+
+    def _effective_n_jobs(self) -> int:
+        if self.n_jobs is None:
+            return 1
+        if isinstance(self.n_jobs, bool) or not isinstance(self.n_jobs, int):
+            raise TypeError("n_jobs must be an integer, None, or omitted.")
+        if self.n_jobs == 0:
+            raise ValueError("n_jobs must not be 0.")
+        if self.n_jobs < 0:
+            return max((os.cpu_count() or 1) + 1 + self.n_jobs, 1)
+        return self.n_jobs
+
     def _to_state(self) -> dict[str, Any]:
         return {
             "state_version": _STATE_VERSION,
@@ -502,6 +567,7 @@ class IFCTransformer:
                 "cat_fill": self.cat_fill,
                 "cat_constant": self.cat_constant,
                 "cat_encoding": self.cat_encoding,
+                "n_jobs": self.n_jobs,
                 "datetime_anchor": self.datetime_anchor.isoformat(),
                 "datetime_unit": self.datetime_unit,
             },
@@ -535,6 +601,7 @@ class IFCTransformer:
             cat_fill=params["cat_fill"],
             cat_constant=params["cat_constant"],
             cat_encoding=params["cat_encoding"],
+            n_jobs=params.get("n_jobs", 1),
             datetime_anchor=params["datetime_anchor"],
             datetime_unit=params["datetime_unit"],
         )

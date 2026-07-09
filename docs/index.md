@@ -24,6 +24,7 @@ tabular generator.
 | Namespaced missing sentinel | Uses `__ifcfill_missing__` by default to reduce category collisions |
 | Categorical label encoding | Optionally encode filled categories as integer codes with a separate inverse-compatible encoder layer |
 | Datetime conversion | Date/time → integer relative to a configurable anchor |
+| Parallel processing | Use `n_jobs` to process columns concurrently during fit and transform |
 | Constant column removal | Drops true constants while preserving learnable categorical missing categories |
 | Missing value tracking | Records count and fraction per column via `missing_report_` |
 | Inverse transform | Restores constants, column order, categorical missing values, and optional non-categorical missing-value distribution |

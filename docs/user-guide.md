@@ -130,6 +130,22 @@ tf = IFCTransformer(
 
 ---
 
+## Parallel processing
+
+`IFCTransformer` can process columns concurrently during `fit()` and
+`transform()`:
+
+```python
+tf = IFCTransformer(n_jobs=-1)  # use all available CPUs
+transformed = tf.fit_transform(df)
+```
+
+Use `n_jobs=1` or `n_jobs=None` for sequential execution. Negative values follow
+the joblib convention: `-1` uses all available CPUs, `-2` leaves one CPU free,
+and so on.
+
+---
+
 ## Categorical encoding
 
 By default, categorical columns are returned as pandas categoricals after

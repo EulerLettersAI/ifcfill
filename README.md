@@ -105,6 +105,14 @@ restored_again = loaded_tf.inverse_transform(transformed)
 transformed = IFCTransformer().fit_transform("data.csv")
 ```
 
+### Parallel column processing
+
+```python
+# Use all available CPUs for per-column fit/transform work
+tf = IFCTransformer(n_jobs=-1)
+transformed = tf.fit_transform(df)
+```
+
 ### Override column types
 
 ```python

@@ -171,6 +171,32 @@ def test_label_encoded_categorical_columns_are_int64(sample_df):
     assert result["city"].dtype == np.int64
 
 
+def test_parallel_fit_transform_matches_sequential(sample_df):
+    sequential = IFCTransformer(cat_encoding="label")
+    parallel = IFCTransformer(cat_encoding="label", n_jobs=2)
+
+    sequential_result = sequential.fit_transform(sample_df)
+    parallel_result = parallel.fit_transform(sample_df)
+
+    pd.testing.assert_frame_equal(parallel_result, sequential_result)
+    assert parallel.column_types_ == sequential.column_types_
+    assert parallel.fill_values_ == sequential.fill_values_
+    assert parallel.dropped_constants_ == sequential.dropped_constants_
+    assert parallel.category_mappings_ == sequential.category_mappings_
+
+
+def test_n_jobs_minus_one_matches_sequential(sample_df):
+    sequential = IFCTransformer().fit_transform(sample_df)
+    parallel = IFCTransformer(n_jobs=-1).fit_transform(sample_df)
+
+    pd.testing.assert_frame_equal(parallel, sequential)
+
+
+def test_invalid_n_jobs_zero_raises():
+    with pytest.raises(ValueError, match="n_jobs"):
+        IFCTransformer(n_jobs=0)
+
+
 def test_label_encoding_mapping_is_tracked(sample_df):
     tf = IFCTransformer(cat_encoding="label")
     tf.fit(sample_df)
