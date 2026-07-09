@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ifcfill"
-version = "0.3.3"
+version = "0.3.4"
 description = "Transformer of tabular data into Integer, Float and Categorical (IFC) variables with missing data imputation."
 readme = "README.md"
 license = "Apache-2.0"
@@ -26,7 +26,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.9,<3.13"
 dependencies = [
     "numpy>=1.23",
     "pandas>=1.5",

@@ -7,6 +7,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.3.4] — 2026-07-09
+
+### Changed
+
+- Declared Python support as 3.9 through 3.12 in package metadata and
+  documentation.
+
+---
+
 ## [0.3.3] — 2026-07-09
 
 ### Added

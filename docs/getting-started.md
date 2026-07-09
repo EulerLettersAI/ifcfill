@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Python ≥ 3.9
+- Python 3.9–3.12
 - `numpy >= 1.23`
 - `pandas >= 1.5`
 
