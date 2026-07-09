@@ -7,6 +7,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.3.3] — 2026-07-09
+
+### Added
+
+- `transform()` now detects data that appears to have already been transformed
+  by the same fitted transformer, returns it unchanged, and emits a warning.
+
+---
+
 ## [0.3.2] — 2026-07-09
 
 ### Added

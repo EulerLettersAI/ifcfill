@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Literal
@@ -318,6 +319,15 @@ class IFCTransformer:
         """
         self._check_fitted()
         df = load_to_dataframe(data)
+        if self._is_already_transformed(df):
+            warnings.warn(
+                "Input data appears to be already transformed by this "
+                "IFCTransformer; returning it unchanged.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return df.copy()
+
         result: dict[str, pd.Series | pd.Categorical] = {}
 
         tasks = [(col, df[col], df.index) for col in df.columns]
@@ -537,6 +547,37 @@ class IFCTransformer:
                 fallback_value=fill_val,
             )
         return col, pd.Categorical(s)
+
+    def _is_already_transformed(self, df: pd.DataFrame) -> bool:
+        if not self.column_types_:
+            return False
+        if any(col in df.columns for col in self.dropped_constants_):
+            return False
+        if not all(col in df.columns for col in self.column_types_):
+            return False
+
+        for col, col_type in self.column_types_.items():
+            series = df[col]
+            if series.isna().any():
+                return False
+
+            if col_type in {"datetime", "integer"}:
+                if not pd.api.types.is_integer_dtype(series):
+                    return False
+            elif col_type == "float":
+                if not pd.api.types.is_float_dtype(series):
+                    return False
+            elif self.cat_encoding == "label":
+                if not pd.api.types.is_integer_dtype(series):
+                    return False
+                codes = set(pd.to_numeric(series, errors="coerce").astype(int))
+                valid_codes = set(self.inverse_category_mappings_.get(col, {}))
+                if not codes.issubset(valid_codes):
+                    return False
+            elif not isinstance(series.dtype, pd.CategoricalDtype):
+                return False
+
+        return True
 
     def _map_columns(self, func: Any, tasks: list[Any]) -> list[Any]:
         n_jobs = self._effective_n_jobs()

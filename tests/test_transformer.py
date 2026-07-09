@@ -197,6 +197,26 @@ def test_invalid_n_jobs_zero_raises():
         IFCTransformer(n_jobs=0)
 
 
+def test_transform_already_transformed_data_returns_unchanged(sample_df):
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(sample_df)
+
+    with pytest.warns(UserWarning, match="already transformed"):
+        transformed_again = tf.transform(transformed)
+
+    pd.testing.assert_frame_equal(transformed_again, transformed)
+
+
+def test_transform_already_label_encoded_data_returns_unchanged(sample_df):
+    tf = IFCTransformer(cat_encoding="label")
+    transformed = tf.fit_transform(sample_df)
+
+    with pytest.warns(UserWarning, match="already transformed"):
+        transformed_again = tf.transform(transformed)
+
+    pd.testing.assert_frame_equal(transformed_again, transformed)
+
+
 def test_label_encoding_mapping_is_tracked(sample_df):
     tf = IFCTransformer(cat_encoding="label")
     tf.fit(sample_df)
