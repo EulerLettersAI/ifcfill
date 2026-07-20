@@ -7,6 +7,13 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.3.6] — 2026-07-20
+
+### Changed
+
+- Restored pandas categorical output as the default for unencoded categorical
+  columns, reverting the object-output behavior introduced in `0.3.5`.
+
 ## [0.3.4] — 2026-07-09
 
 ### Changed
