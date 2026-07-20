@@ -7,6 +7,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.3.5] — 2026-07-20
+
+### Changed
+
+- Unencoded categorical columns now use pandas `object` dtype by default for
+  broader synthesizer compatibility. Pass `cat_output="category"` to retain
+  pandas categorical output.
+- `inverse_transform()` accepts unencoded categorical input as either object or
+  pandas categorical dtype.
+
 ## [0.3.4] — 2026-07-09
 
 ### Changed

@@ -18,6 +18,7 @@ from ._types import ColType, infer_col_type
 # String sentinels that represent null in object columns after .astype(str)
 _NULL_SENTINELS = frozenset({"nan", "none", "<na>", "nat", "pd.na", ""})
 _CAT_ENCODINGS = ("none", "label")
+_CAT_OUTPUTS = ("object", "category")
 DEFAULT_CAT_CONSTANT = "__ifcfill_missing__"
 _STATE_VERSION = 1
 
@@ -86,10 +87,15 @@ class IFCTransformer:
         user categories.
     cat_encoding:
         Optional encoding for categorical columns. ``"none"`` keeps
-        categorical columns as pandas categoricals. ``"label"`` fills
+        categorical columns unencoded. ``"label"`` fills
         categorical values first, then maps each completed category to an
         integer code through a separate encoder layer and stores mappings for
         :meth:`inverse_transform`.
+    cat_output:
+        Output dtype for unencoded categorical columns. ``"object"`` (the
+        default) returns ordinary pandas object columns for broad synthesizer
+        compatibility. ``"category"`` returns pandas categorical columns.
+        This option has no effect when ``cat_encoding="label"``.
     n_jobs:
         Number of worker threads to use for per-column ``fit`` and
         ``transform`` work. ``None`` or ``1`` runs sequentially. Negative values
@@ -136,6 +142,7 @@ class IFCTransformer:
         cat_fill: Literal["mode", "constant"] = "constant",
         cat_constant: str = DEFAULT_CAT_CONSTANT,
         cat_encoding: Literal["none", "label"] = "none",
+        cat_output: Literal["object", "category"] = "object",
         n_jobs: int | None = 1,
         datetime_anchor: str | pd.Timestamp = "1970-01-01",
         datetime_unit: Literal["D", "s", "ms", "us", "ns"] = "D",
@@ -150,12 +157,18 @@ class IFCTransformer:
                 f"Unknown cat_encoding {cat_encoding!r}. "
                 f"Choose from: {_CAT_ENCODINGS}."
             )
+        if cat_output not in _CAT_OUTPUTS:
+            raise ValueError(
+                f"Unknown cat_output {cat_output!r}. "
+                f"Choose from: {_CAT_OUTPUTS}."
+            )
         self.col_types: dict[str, ColType] = col_types or {}
         self.int_fill = int_fill
         self.float_fill = float_fill
         self.cat_fill = cat_fill
         self.cat_constant = cat_constant
         self.cat_encoding = cat_encoding
+        self.cat_output = cat_output
         self.n_jobs = n_jobs
         self._effective_n_jobs()
         self.datetime_anchor = pd.Timestamp(datetime_anchor)
@@ -399,7 +412,11 @@ class IFCTransformer:
         if self.cat_fill == "constant":
             for col, col_type in self.column_types_.items():
                 if col_type == "categorical" and col in result.columns:
-                    result[col] = result[col].replace(str(self.fill_values_[col]), np.nan)
+                    # Synthetic generators may return either object or pandas
+                    # categorical columns. Normalize both before replacement.
+                    result[col] = result[col].astype(object).replace(
+                        str(self.fill_values_[col]), np.nan
+                    )
 
         # Convert integer datetime offsets back to pandas timestamps.
         for col, col_type in self.column_types_.items():
@@ -546,7 +563,9 @@ class IFCTransformer:
                 s,
                 fallback_value=fill_val,
             )
-        return col, pd.Categorical(s)
+        if self.cat_output == "category":
+            return col, pd.Categorical(s)
+        return col, s.astype(object)
 
     def _is_already_transformed(self, df: pd.DataFrame) -> bool:
         if not self.column_types_:
@@ -574,7 +593,14 @@ class IFCTransformer:
                 valid_codes = set(self.inverse_category_mappings_.get(col, {}))
                 if not codes.issubset(valid_codes):
                     return False
-            elif not isinstance(series.dtype, pd.CategoricalDtype):
+            elif self.cat_output == "category":
+                if not isinstance(series.dtype, pd.CategoricalDtype):
+                    return False
+            elif not (
+                pd.api.types.is_object_dtype(series)
+                or pd.api.types.is_string_dtype(series)
+                or isinstance(series.dtype, pd.CategoricalDtype)
+            ):
                 return False
 
         return True
@@ -608,6 +634,7 @@ class IFCTransformer:
                 "cat_fill": self.cat_fill,
                 "cat_constant": self.cat_constant,
                 "cat_encoding": self.cat_encoding,
+                "cat_output": self.cat_output,
                 "n_jobs": self.n_jobs,
                 "datetime_anchor": self.datetime_anchor.isoformat(),
                 "datetime_unit": self.datetime_unit,
@@ -642,6 +669,8 @@ class IFCTransformer:
             cat_fill=params["cat_fill"],
             cat_constant=params["cat_constant"],
             cat_encoding=params["cat_encoding"],
+            # States written before cat_output was introduced used category.
+            cat_output=params.get("cat_output", "category"),
             n_jobs=params.get("n_jobs", 1),
             datetime_anchor=params["datetime_anchor"],
             datetime_unit=params["datetime_unit"],

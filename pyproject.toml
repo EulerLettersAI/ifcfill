@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ifcfill"
-version = "0.3.4"
+version = "0.3.5"
 description = "Transformer of tabular data into Integer, Float and Categorical (IFC) variables with missing data imputation."
 readme = "README.md"
 license = "Apache-2.0"
@@ -39,6 +39,7 @@ examples = [
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
+    "ruff>=0.4",
     "build>=1.0",
     "twine>=4.0",
 ]
