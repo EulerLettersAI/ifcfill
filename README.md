@@ -41,7 +41,6 @@ variable.
   - Categorical: `constant` (default), `mode`
 - **Categorical missingness as a category** — missing categorical values are transformed into a learnable category and converted back to missing values during `inverse_transform()`
 - **Namespaced missing sentinel** — the default categorical missing category is `__ifcfill_missing__` to reduce collisions with real values
-- **Synthesizer-friendly categorical output** — unencoded categoricals are object columns by default, with pandas `category` available via `cat_output="category"`
 - **Optional categorical label encoding** — fill categorical values first, then encode categories as integer codes through a separate label-encoding layer with inverse mappings
 - **Datetime → integer conversion** — converts date/time columns to integers relative to a configurable anchor date and time unit (days, seconds, ms, …)
 - **Constant column removal** — automatically drops true constant columns while preserving categorical missing categories when they are learnable
@@ -131,12 +130,6 @@ transformed = tf.fit_transform(df)
 print(tf.get_category_mappings())
 
 restored = tf.inverse_transform(transformed)
-```
-
-To return pandas categorical columns instead of the default object columns:
-
-```python
-tf = IFCTransformer(cat_output="category")
 ```
 
 ---

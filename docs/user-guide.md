@@ -148,23 +148,13 @@ and so on.
 
 ## Categorical encoding
 
-By default, categorical columns are returned with pandas `object` dtype after
-missing values are filled. This is broadly compatible with synthesizers that
-reject pandas categorical dtypes. Missing categorical values are represented
-by the learned missing category:
+By default, categorical columns are returned as pandas categoricals after
+missing values are filled. Missing categorical values are represented by the
+learned missing category:
 
 ```python
 tf = IFCTransformer(cat_encoding="none")  # default
 ```
-
-To opt into pandas categorical output:
-
-```python
-tf = IFCTransformer(cat_output="category")
-```
-
-`inverse_transform()` accepts unencoded categorical columns with either object
-or pandas categorical dtype, regardless of which dtype a synthesizer returns.
 
 Encodings are designed to be unsupervised and invertible. Categorical missing
 values are filled first, and label encoding is applied as a second layer over

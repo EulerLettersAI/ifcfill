@@ -67,7 +67,7 @@ def test_invalid_input_type_raises():
 def test_user_type_override_forces_categorical(sample_df):
     tf = IFCTransformer(col_types={"age": "categorical"})
     result = tf.fit_transform(sample_df)
-    assert result["age"].dtype == object
+    assert hasattr(result["age"], "cat"), "age should be Categorical when overridden"
 
 
 def test_user_type_override_forces_float(sample_df):
@@ -161,14 +161,9 @@ def test_float_columns_are_float64(sample_df):
     assert result["salary"].dtype == np.float64
 
 
-def test_categorical_columns_are_object_by_default(sample_df):
+def test_categorical_columns_have_cat_accessor(sample_df):
     result = IFCTransformer().fit_transform(sample_df)
-    assert result["city"].dtype == object
-
-
-def test_categorical_columns_can_use_pandas_category(sample_df):
-    result = IFCTransformer(cat_output="category").fit_transform(sample_df)
-    assert isinstance(result["city"].dtype, pd.CategoricalDtype)
+    assert hasattr(result["city"], "cat")
 
 
 def test_label_encoded_categorical_columns_are_int64(sample_df):
@@ -309,18 +304,6 @@ def test_categorical_missing_category_inverts_to_nan(sample_df):
     transformed = tf.fit_transform(sample_df)
     assert transformed["city"].iloc[1] == "__ifcfill_missing__"
     restored = tf.inverse_transform(transformed)
-    assert pd.isna(restored["city"].iloc[1])
-
-
-@pytest.mark.parametrize("input_dtype", ["object", "category"])
-def test_inverse_accepts_object_or_category_categorical_input(sample_df, input_dtype):
-    tf = IFCTransformer()
-    transformed = tf.fit_transform(sample_df)
-    transformed["city"] = transformed["city"].astype(input_dtype)
-
-    restored = tf.inverse_transform(transformed)
-
-    assert restored["city"].dtype == object
     assert pd.isna(restored["city"].iloc[1])
 
 
@@ -541,18 +524,6 @@ def test_save_and_load_preserves_transform_state(tmp_path, sample_df):
     pd.testing.assert_frame_equal(loaded.transform(new_df), tf.transform(new_df))
 
 
-def test_save_and_load_preserves_categorical_output(tmp_path, sample_df):
-    tf = IFCTransformer(cat_output="category").fit(sample_df)
-    state_file = tmp_path / "ifcfill-category-state.json"
-
-    tf.save(state_file)
-    loaded = IFCTransformer.load(state_file)
-    transformed = loaded.transform(sample_df)
-
-    assert loaded.cat_output == "category"
-    assert isinstance(transformed["city"].dtype, pd.CategoricalDtype)
-
-
 def test_save_before_fit_raises(tmp_path):
     with pytest.raises(RuntimeError, match="not fitted"):
         IFCTransformer().save(tmp_path / "ifcfill-state.json")
@@ -580,8 +551,3 @@ def test_invalid_datetime_unit():
 def test_invalid_cat_encoding():
     with pytest.raises(ValueError, match="cat_encoding"):
         IFCTransformer(cat_encoding="target")  # type: ignore[arg-type]
-
-
-def test_invalid_cat_output():
-    with pytest.raises(ValueError, match="cat_output"):
-        IFCTransformer(cat_output="categorical")  # type: ignore[arg-type]
