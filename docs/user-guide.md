@@ -315,14 +315,3 @@ restored = tf.inverse_transform(
     deterministically when the missing category appears. For numeric and datetime
     columns, `restore_missing=True` statistically reintroduces missing values at
     the rates learned during `fit()`.
-
----
-
-## Building the docs locally
-
-```bash
-pip install "ifcfill[docs]"
-mkdocs serve          # live-reload preview at http://127.0.0.1:8000
-mkdocs build          # static site in site/
-mkdocs gh-deploy      # publish to GitHub Pages
-```
