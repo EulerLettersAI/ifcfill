@@ -704,17 +704,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#building-the-docs-locally" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Building the docs locally
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -980,17 +969,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#building-the-docs-locally" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Building the docs locally
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1026,7 +1004,7 @@ table structure.</p>
 <li>Call <code>inverse_transform()</code> on the synthetic output using the same fitted
    transformer, or save and load the fitted state when this happens elsewhere.</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span><span class="n">cat_encoding</span><span class="o">=</span><span class="s2">&quot;label&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span><span class="n">cat_encoding</span><span class="o">=</span><span class="s2">"label"</span><span class="p">)</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">real_ifc</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">real_df</span><span class="p">)</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
@@ -1036,10 +1014,10 @@ table structure.</p>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">synthetic_df</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span><span class="n">synthetic_ifc</span><span class="p">)</span>
 </code></pre></div>
 <p>For a separate inverse-transform environment:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">tf</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;ifcfill-state.json&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">tf</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">"ifcfill-state.json"</span><span class="p">)</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># Later, or on another machine:</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">loaded_tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;ifcfill-state.json&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">loaded_tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">"ifcfill-state.json"</span><span class="p">)</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">synthetic_df</span> <span class="o">=</span> <span class="n">loaded_tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span><span class="n">synthetic_ifc</span><span class="p">)</span>
 </code></pre></div>
 <p><code>ifcfill</code> is intentionally unsupervised. It does not require a target variable,
@@ -1086,8 +1064,8 @@ this order:</p>
 Other columns are still inferred automatically.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">col_types</span><span class="o">=</span><span class="p">{</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>        <span class="s2">&quot;zip_code&quot;</span><span class="p">:</span> <span class="s2">&quot;categorical&quot;</span><span class="p">,</span>  <span class="c1"># prevent numeric inference</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        <span class="s2">&quot;score&quot;</span><span class="p">:</span>    <span class="s2">&quot;float&quot;</span><span class="p">,</span>        <span class="c1"># keep decimals even if all-whole</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>        <span class="s2">"zip_code"</span><span class="p">:</span> <span class="s2">"categorical"</span><span class="p">,</span>  <span class="c1"># prevent numeric inference</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        <span class="s2">"score"</span><span class="p">:</span>    <span class="s2">"float"</span><span class="p">,</span>        <span class="c1"># keep decimals even if all-whole</span>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="p">}</span>
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">)</span>
 </code></pre></div>
@@ -1172,10 +1150,10 @@ converts it back to a missing value.</p>
 <p>The default sentinel is deliberately namespaced as <code>"__ifcfill_missing__"</code> to
 reduce collisions with real categories such as <code>"missing"</code> or <code>"unknown"</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">int_fill</span><span class="o">=</span><span class="s2">&quot;mean&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">float_fill</span><span class="o">=</span><span class="s2">&quot;median&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">cat_fill</span><span class="o">=</span><span class="s2">&quot;constant&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">cat_constant</span><span class="o">=</span><span class="s2">&quot;UNKNOWN&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">int_fill</span><span class="o">=</span><span class="s2">"mean"</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">float_fill</span><span class="o">=</span><span class="s2">"median"</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">cat_fill</span><span class="o">=</span><span class="s2">"constant"</span><span class="p">,</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">cat_constant</span><span class="o">=</span><span class="s2">"UNKNOWN"</span><span class="p">,</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="p">)</span>
 </code></pre></div>
 <hr />
@@ -1193,7 +1171,7 @@ and so on.</p>
 <p>By default, categorical columns are returned as pandas categoricals after
 missing values are filled. Missing categorical values are represented by the
 learned missing category:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span><span class="n">cat_encoding</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">)</span>  <span class="c1"># default</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span><span class="n">cat_encoding</span><span class="o">=</span><span class="s2">"none"</span><span class="p">)</span>  <span class="c1"># default</span>
 </code></pre></div>
 <p>Encodings are designed to be unsupervised and invertible. Categorical missing
 values are filled first, and label encoding is applied as a second layer over
@@ -1201,14 +1179,14 @@ the completed set of categories. This means the learned missing category is part
 of the mapping even when it did not appear in the fit data.</p>
 <p>For generative modeling workflows, categorical columns can also be label
 encoded into integer codes:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span><span class="n">cat_encoding</span><span class="o">=</span><span class="s2">&quot;label&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span><span class="n">cat_encoding</span><span class="o">=</span><span class="s2">"label"</span><span class="p">)</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">transformed</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
 </code></pre></div>
 <p>The learned mappings are stored after <code>fit()</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">tf</span><span class="o">.</span><span class="n">category_mappings_</span>          <span class="c1"># dict: column -&gt; {category -&gt; code}</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">tf</span><span class="o">.</span><span class="n">inverse_category_mappings_</span>  <span class="c1"># dict: column -&gt; {code -&gt; category}</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">tf</span><span class="o">.</span><span class="n">get_category_mappings</span><span class="p">()</span>     <span class="c1"># defensive copy of all forward mappings</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">tf</span><span class="o">.</span><span class="n">get_category_mapping</span><span class="p">(</span><span class="s2">&quot;city&quot;</span><span class="p">)</span> <span class="c1"># defensive copy for one column</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">tf</span><span class="o">.</span><span class="n">get_category_mapping</span><span class="p">(</span><span class="s2">"city"</span><span class="p">)</span> <span class="c1"># defensive copy for one column</span>
 </code></pre></div>
 <p><code>inverse_transform()</code> decodes label-encoded columns back to their original
 category values. This is designed for unsupervised synthetic-data workflows:
@@ -1227,13 +1205,13 @@ to meaningful table values.</p>
 <h2 id="saving-fitted-transformations">Saving fitted transformations<a class="headerlink" href="#saving-fitted-transformations" title="Permanent link">&para;</a></h2>
 <p>For workflows where inverse transformation happens later or on another machine,
 save the fitted transformer state after <code>fit()</code> or <code>fit_transform()</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span><span class="n">cat_encoding</span><span class="o">=</span><span class="s2">&quot;label&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span><span class="n">cat_encoding</span><span class="o">=</span><span class="s2">"label"</span><span class="p">)</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">real_ifc</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">real_df</span><span class="p">)</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">tf</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;ifcfill-state.json&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">tf</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">"ifcfill-state.json"</span><span class="p">)</span>
 </code></pre></div>
 <p>Then load the same transformation state wherever generated data needs to be
 restored:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">loaded_tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;ifcfill-state.json&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">loaded_tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">"ifcfill-state.json"</span><span class="p">)</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">synthetic_df</span> <span class="o">=</span> <span class="n">loaded_tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span><span class="n">synthetic_ifc</span><span class="p">)</span>
 </code></pre></div>
 <p>The JSON state includes the learned column types, fill values, dropped
@@ -1265,10 +1243,10 @@ date. Two parameters control this:</p>
 </tbody>
 </table>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Days since 2000-01-01</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span><span class="n">datetime_anchor</span><span class="o">=</span><span class="s2">&quot;2000-01-01&quot;</span><span class="p">,</span> <span class="n">datetime_unit</span><span class="o">=</span><span class="s2">&quot;D&quot;</span><span class="p">)</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span><span class="n">datetime_anchor</span><span class="o">=</span><span class="s2">"2000-01-01"</span><span class="p">,</span> <span class="n">datetime_unit</span><span class="o">=</span><span class="s2">"D"</span><span class="p">)</span>
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Seconds since Unix epoch</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span><span class="n">datetime_anchor</span><span class="o">=</span><span class="s2">&quot;1970-01-01&quot;</span><span class="p">,</span> <span class="n">datetime_unit</span><span class="o">=</span><span class="s2">&quot;s&quot;</span><span class="p">)</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span><span class="n">datetime_anchor</span><span class="o">=</span><span class="s2">"1970-01-01"</span><span class="p">,</span> <span class="n">datetime_unit</span><span class="o">=</span><span class="s2">"s"</span><span class="p">)</span>
 </code></pre></div>
 <p>Missing datetime values (<code>NaT</code>) are filled with the median of the non-null values
 in that column.</p>
@@ -1286,7 +1264,7 @@ category.</p>
 <p>Dropped columns and their values are stored in <code>dropped_constants_</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">tf</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">dropped_constants_</span><span class="p">)</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># {&quot;flag&quot;: (&quot;yes&quot;, 4)}  ← value and original column position</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># {"flag": ("yes", 4)}  ← value and original column position</span>
 </code></pre></div>
 <hr />
 <h2 id="missing-value-tracking">Missing value tracking<a class="headerlink" href="#missing-value-tracking" title="Permanent link">&para;</a></h2>
@@ -1332,13 +1310,6 @@ deterministically when the missing category appears. For numeric and datetime
 columns, <code>restore_missing=True</code> statistically reintroduces missing values at
 the rates learned during <code>fit()</code>.</p>
 </div>
-<hr />
-<h2 id="building-the-docs-locally">Building the docs locally<a class="headerlink" href="#building-the-docs-locally" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;ifcfill[docs]&quot;</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>mkdocs<span class="w"> </span>serve<span class="w">          </span><span class="c1"># live-reload preview at http://127.0.0.1:8000</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>mkdocs<span class="w"> </span>build<span class="w">          </span><span class="c1"># static site in site/</span>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>mkdocs<span class="w"> </span>gh-deploy<span class="w">      </span><span class="c1"># publish to GitHub Pages</span>
-</code></pre></div>
 
 
 
