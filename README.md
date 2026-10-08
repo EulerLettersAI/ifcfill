@@ -39,13 +39,13 @@ variable.
   - Integer: `mean`, `median`, `mode`, `zero`
   - Float: `mean`, `median`, `mode`, `zero`
   - Categorical: `constant` (default), `mode`
-- **Categorical missingness as a category** — missing categorical values are transformed into a learnable category and converted back to missing values during `inverse_transform()`
-- **Namespaced missing sentinel** — the default categorical missing category is `__ifcfill_missing__` to reduce collisions with real values
+- **Synthesis-safe categorical missingness** — missing categorical values use the internal `__ifcfill_missing__` sentinel during transformation
+- **Marginal or joint reconstruction** — inverse transformation always reconstructs either fitted per-variable missingness or the empirical joint row-pattern distribution
 - **Optional categorical label encoding** — fill categorical values first, then encode categories as integer codes through a separate label-encoding layer with inverse mappings
 - **Datetime → integer conversion** — converts date/time columns to integers relative to a configurable anchor date and time unit (days, seconds, ms, …)
 - **Constant column removal** — automatically drops true constant columns while preserving categorical missing categories when they are learnable
 - **Missing value tracking** — records the count and fraction of missing values per column at fit time, accessible via `missing_report_`
-- **Full transformation bookkeeping** — `inverse_transform()` restores dropped constants, original column order, and optionally re-introduces missing values at the original rate
+- **Full transformation bookkeeping** — `inverse_transform()` restores semantic dtypes, dropped constants, original column order, and fitted missingness
 - **Portable fitted state** — save all learned transformations to JSON and load them later for consistent transform/inverse-transform workflows on another machine
 - **Synthetic-data workflow support** — apply one inverse transformation consistently to both transformed real data and generated synthetic data
 
@@ -86,9 +86,12 @@ print(transformed)
 # Inspect missing-value distribution captured at fit time
 print(tf.missing_report_)
 
-# Restore original structure.
-# Categorical missing categories are converted back to missing values.
-restored = tf.inverse_transform(transformed, restore_missing=True, random_state=42)
+# Restore original structure and the default marginal missingness distribution.
+restored = tf.inverse_transform(
+    transformed,
+    missingness_restore="marginal",
+    random_state=42,
+)
 print(restored)
 
 # Save everything needed to transform or inverse-transform later.
@@ -98,6 +101,24 @@ tf.save("ifcfill-state.json")
 loaded_tf = IFCTransformer.load("ifcfill-state.json")
 restored_again = loaded_tf.inverse_transform(transformed)
 ```
+
+## Missingness reconstruction
+
+`inverse_transform()` always reconstructs missingness across every original
+column, including categorical and internally dropped constant columns:
+
+- **IFCFill-Marginal** (`missingness_restore="marginal"`, the default) preserves
+  each fitted per-variable distribution, `P(M_j)`. For `n` synthetic rows it
+  assigns exactly `round(fitted_fraction * n)` missing positions per column.
+- **IFCFill-Joint** (`missingness_restore="joint"`) preserves the fitted
+  empirical row-wise pattern distribution, `P(M_1, ..., M_p)`, using
+  largest-remainder count allocation followed by a reproducible row shuffle.
+
+The categorical sentinel `__ifcfill_missing__` only makes incomplete training
+data synthesis-ready. It does not control final missingness. IFCFill replaces
+excess generated sentinels and applies its reconstructed mask as the authority.
+Integers are rounded without clipping and returned as nullable pandas `Int64`;
+floats remain floating-point and missing datetimes use `NaT`.
 
 ### From a CSV file
 

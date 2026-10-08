@@ -18,8 +18,9 @@ from ._types import ColType, infer_col_type
 # String sentinels that represent null in object columns after .astype(str)
 _NULL_SENTINELS = frozenset({"nan", "none", "<na>", "nat", "pd.na", ""})
 _CAT_ENCODINGS = ("none", "label")
+_MISSINGNESS_RESTORE_MODES = ("marginal", "joint")
 DEFAULT_CAT_CONSTANT = "__ifcfill_missing__"
-_STATE_VERSION = 1
+_STATE_VERSION = 2
 
 # Multiplier to convert total_seconds() to each supported datetime unit
 _SECONDS_PER_UNIT: dict[str, float] = {
@@ -116,6 +117,12 @@ class IFCTransformer:
         Number of missing values per column (all original columns).
     missing_fractions_ : dict[str, float]
         Fraction of missing values per column (all original columns).
+    missing_pattern_distribution_ : dict[tuple[int, ...], float]
+        Empirical joint distribution of row-wise missingness patterns. Pattern
+        positions follow ``original_columns_``.
+    categorical_distributions_ : dict[str, dict[str, float]]
+        Observed real-data distributions used when categorical sentinel values
+        cannot be replaced from synthetic values.
     category_mappings_ : dict[str, dict[str, int]]
         Forward mapping for label-encoded categorical columns.
     inverse_category_mappings_ : dict[str, dict[int, str]]
@@ -125,7 +132,9 @@ class IFCTransformer:
     --------
     >>> tf = IFCTransformer()
     >>> transformed = tf.fit_transform("data.csv")
-    >>> restored = tf.inverse_transform(transformed, restore_missing=True)
+    >>> restored = tf.inverse_transform(
+    ...     transformed, missingness_restore="joint", random_state=42
+    ... )
     """
 
     def __init__(
@@ -166,8 +175,11 @@ class IFCTransformer:
         self.fill_values_: dict[str, Any] = {}
         self.dropped_constants_: dict[str, tuple[Any, int]] = {}
         self.original_columns_: list[str] = []
+        self.original_column_types_: dict[str, ColType] = {}
         self.missing_counts_: dict[str, int] = {}
         self.missing_fractions_: dict[str, float] = {}
+        self.missing_pattern_distribution_: dict[tuple[int, ...], float] = {}
+        self.categorical_distributions_: dict[str, dict[str, float]] = {}
         self._category_encoder = LabelCategoryEncoder()
         self.category_mappings_ = self._category_encoder.category_mappings_
         self.inverse_category_mappings_ = self._category_encoder.inverse_category_mappings_
@@ -241,7 +253,9 @@ class IFCTransformer:
         state = json.loads(input_path.read_text(encoding="utf-8"))
         if state.get("state_version") != _STATE_VERSION:
             raise ValueError(
-                f"Unsupported IFCTransformer state version {state.get('state_version')!r}."
+                f"Unsupported IFCTransformer state version "
+                f"{state.get('state_version')!r}; expected {_STATE_VERSION}. "
+                "Refit the transformer and save a new state file."
             )
         return cls._from_state(state)
 
@@ -262,20 +276,28 @@ class IFCTransformer:
 
         self.dropped_constants_ = {}
         self.column_types_ = {}
+        self.original_column_types_ = {}
         self.fill_values_ = {}
         self.missing_counts_ = {}
         self.missing_fractions_ = {}
+        self.categorical_distributions_ = {}
         self._category_encoder.reset()
         self.category_mappings_ = self._category_encoder.category_mappings_
         self.inverse_category_mappings_ = self._category_encoder.inverse_category_mappings_
 
         n = len(df)
+        self.missing_pattern_distribution_ = self._fit_missing_pattern_distribution(df)
 
         tasks = [(idx, col, df[col], n) for idx, col in enumerate(df.columns)]
         for result in self._map_columns(self._fit_column, tasks):
             col = result["column"]
+            self.original_column_types_[col] = result["column_type"]
             self.missing_counts_[col] = result["missing_count"]
             self.missing_fractions_[col] = result["missing_fraction"]
+
+            category_distribution = result.get("category_distribution")
+            if category_distribution is not None:
+                self.categorical_distributions_[col] = category_distribution
 
             if result["is_constant"]:
                 self.dropped_constants_[col] = (
@@ -344,49 +366,59 @@ class IFCTransformer:
     def inverse_transform(
         self,
         data: str | Path | pd.DataFrame,
-        restore_missing: bool = False,
+        missingness_restore: Literal["marginal", "joint"] = "marginal",
         random_state: int | np.random.Generator | None = None,
     ) -> pd.DataFrame:
-        """Restore the structure of the original table from a transformed one.
+        """Restore semantic types, structure, and missingness.
 
-        Specifically:
+        Missingness reconstruction always occurs. ``"marginal"`` preserves
+        each fitted per-column distribution :math:`P(M_j)`, while ``"joint"``
+        preserves the empirical row-pattern distribution
+        :math:`P(M_1, \\ldots, M_p)`. Categorical synthesis sentinels are an
+        internal representation only; the reconstructed mask is authoritative.
 
-        1. Re-inserts dropped constant columns at their original positions.
-        2. Decodes label-encoded categorical columns when enabled.
-        3. Converts the learned categorical missing category back to ``NaN``
-           when ``cat_fill="constant"``.
-        4. Reorders columns to match the original input order.
-        5. (Optional) Randomly replaces values with ``NaN`` in each
-           non-categorical, non-constant column at the same rate as the
-           original missing fraction.
+        Integer columns are rounded to the nearest integer and returned with
+        pandas nullable ``Int64`` dtype. Datetime columns use ``NaT`` for
+        reconstructed missing values.
 
         Parameters
         ----------
         data:
             A DataFrame produced by :meth:`transform` (or a CSV of one).
-        restore_missing:
-            If ``True``, randomly introduce ``NaN`` values in non-categorical
-            columns proportional to the missing fractions recorded during
-            :meth:`fit`. Categorical missing values represented by the learned
-            missing category are restored deterministically regardless of this
-            setting.
+        missingness_restore:
+            ``"marginal"`` (default) allocates exactly
+            ``round(fitted_fraction * n_rows)`` missing values independently in
+            every original column. ``"joint"`` uses largest-remainder allocation
+            of the fitted empirical row-wise missingness patterns.
         random_state:
             Integer seed or :class:`numpy.random.Generator` for reproducible
-            missing-value restoration.
+            mask assignment and categorical sentinel replacement.
 
         Returns
         -------
         pandas.DataFrame
+            Reconstructed data in the fitted column order.
+
+        Raises
+        ------
+        ValueError
+            If *missingness_restore* is not ``"marginal"`` or ``"joint"``.
         """
         self._check_fitted()
+        if missingness_restore not in _MISSINGNESS_RESTORE_MODES:
+            raise ValueError(
+                f"Unknown missingness_restore {missingness_restore!r}. "
+                f"Choose from: {_MISSINGNESS_RESTORE_MODES}."
+            )
+
         result = load_to_dataframe(data).copy()
         rng = np.random.default_rng(random_state)
 
-        # Re-add constant columns
+        # 1-2. Re-add columns removed before synthesis.
         for col, (value, _) in self.dropped_constants_.items():
             result[col] = value
 
-        # Decode label-encoded categorical columns before restoring structure.
+        # 3. Decode label-encoded categorical columns.
         if self.cat_encoding == "label":
             for col in self.inverse_category_mappings_:
                 if col in result.columns:
@@ -395,49 +427,250 @@ class IFCTransformer:
                         result[col],
                     )
 
-        # Convert the learned categorical missing category back to missing values.
-        if self.cat_fill == "constant":
-            for col, col_type in self.column_types_.items():
-                if col_type == "categorical" and col in result.columns:
-                    result[col] = result[col].replace(str(self.fill_values_[col]), np.nan)
-
-        # Convert integer datetime offsets back to pandas timestamps.
-        for col, col_type in self.column_types_.items():
-            if col_type == "datetime" and col in result.columns:
+        # 4. Convert synthesized datetime offsets back to timestamps. Dropped
+        # datetime constants were reinserted in their original representation.
+        for col, col_type in self.original_column_types_.items():
+            if (
+                col_type == "datetime"
+                and col in result.columns
+                and col not in self.dropped_constants_
+            ):
                 result[col] = _numeric_to_datetime(
                     result[col],
                     self.datetime_anchor,
                     self.datetime_unit,
                 )
+                if result[col].isna().any():
+                    fill_datetime = self.datetime_anchor + pd.to_timedelta(
+                        self.fill_values_[col], unit=self.datetime_unit
+                    )
+                    result[col] = result[col].fillna(fill_datetime)
 
-        # Reorder to original column order (only columns present)
-        available = [c for c in self.original_columns_ if c in result.columns]
+        # 5. Restore semantic numeric types and neutralize any generator-created
+        # numeric nulls so only IFCFill's final mask controls missingness.
+        self._restore_semantic_types(result)
+
+        # 6. Construct one authoritative mask over every original column.
+        missing_mask = self._build_missingness_mask(
+            len(result), missingness_restore, rng
+        )
+
+        # 7. Replace categorical sentinels/nulls wherever the final mask says
+        # the value must be observed.
+        self._resolve_categorical_sentinels(result, missing_mask, rng)
+
+        # 8. Apply type-appropriate missing values.
+        self._apply_missingness_mask(result, missing_mask)
+
+        # 9. Restore fitted column order (and discard unexpected columns).
+        available = [col for col in self.original_columns_ if col in result.columns]
         result = result[available]
-
-        # Optionally restore missing-value distribution (non-constant cols only)
-        if restore_missing:
-            n = len(result)
-            for col in available:
-                if col in self.dropped_constants_:
-                    continue
-                if self.column_types_.get(col) == "categorical":
-                    continue
-                frac = self.missing_fractions_.get(col, 0.0)
-                if frac > 0.0 and n > 0:
-                    n_missing = max(1, int(np.round(frac * n)))
-                    n_missing = min(n_missing, n)
-                    idx = rng.choice(n, size=n_missing, replace=False)
-                    if self.column_types_.get(col) == "datetime":
-                        result.iloc[idx, result.columns.get_loc(col)] = pd.NaT
-                    else:
-                        result[col] = result[col].astype(object)
-                        result.iloc[idx, result.columns.get_loc(col)] = np.nan
 
         return result
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _fit_missing_pattern_distribution(
+        df: pd.DataFrame,
+    ) -> dict[tuple[int, ...], float]:
+        """Return the empirical distribution of raw row-wise missingness masks."""
+        if len(df) == 0:
+            return {}
+
+        mask = df.isna().to_numpy(dtype=np.uint8)
+        patterns, counts = np.unique(mask, axis=0, return_counts=True)
+        return {
+            tuple(int(value) for value in pattern): float(count / len(df))
+            for pattern, count in zip(patterns, counts)
+        }
+
+    def _build_missingness_mask(
+        self,
+        n_rows: int,
+        mode: Literal["marginal", "joint"],
+        rng: np.random.Generator,
+    ) -> np.ndarray:
+        """Allocate a fitted missingness distribution to *n_rows* exactly."""
+        n_columns = len(self.original_columns_)
+        mask = np.zeros((n_rows, n_columns), dtype=bool)
+        if n_rows == 0 or n_columns == 0:
+            return mask
+
+        if mode == "marginal":
+            for column_index, column in enumerate(self.original_columns_):
+                fraction = self.missing_fractions_.get(column, 0.0)
+                n_missing = min(max(int(round(fraction * n_rows)), 0), n_rows)
+                if n_missing:
+                    row_indices = rng.choice(n_rows, size=n_missing, replace=False)
+                    mask[row_indices, column_index] = True
+            return mask
+
+        if not self.missing_pattern_distribution_:
+            return mask
+
+        patterns = list(self.missing_pattern_distribution_)
+        if any(len(pattern) != n_columns for pattern in patterns):
+            raise RuntimeError(
+                "Stored joint missingness patterns do not match the fitted "
+                "original column order. Refit the IFCTransformer."
+            )
+
+        probabilities = np.asarray(
+            [self.missing_pattern_distribution_[pattern] for pattern in patterns],
+            dtype=float,
+        )
+        probability_sum = probabilities.sum()
+        if not np.isfinite(probability_sum) or probability_sum <= 0:
+            raise RuntimeError(
+                "Stored joint missingness probabilities are invalid. "
+                "Refit the IFCTransformer."
+            )
+        probabilities = probabilities / probability_sum
+
+        expected_counts = probabilities * n_rows
+        allocated_counts = np.floor(expected_counts).astype(int)
+        remaining = n_rows - int(allocated_counts.sum())
+        if remaining:
+            remainders = expected_counts - allocated_counts
+            order = np.argsort(-remainders, kind="stable")
+            allocated_counts[order[:remaining]] += 1
+
+        pattern_array = np.asarray(patterns, dtype=bool)
+        allocated = np.repeat(pattern_array, allocated_counts, axis=0)
+        return allocated[rng.permutation(n_rows)]
+
+    def _restore_semantic_types(self, result: pd.DataFrame) -> None:
+        """Restore numeric dtypes and remove generator-created numeric nulls."""
+        for column, column_type in self.original_column_types_.items():
+            if column not in result.columns:
+                continue
+
+            if column_type == "integer":
+                numeric = pd.to_numeric(result[column], errors="coerce").round()
+                fill_value = self._semantic_fill_value(column)
+                if pd.notna(fill_value):
+                    numeric = numeric.fillna(int(round(float(fill_value))))
+                result[column] = numeric.astype("Int64")
+            elif column_type == "float":
+                numeric = pd.to_numeric(result[column], errors="coerce")
+                fill_value = self._semantic_fill_value(column)
+                if pd.notna(fill_value):
+                    numeric = numeric.fillna(float(fill_value))
+                result[column] = numeric.astype(np.float64)
+            elif column_type == "datetime":
+                datetimes = pd.to_datetime(result[column], errors="coerce")
+                fill_value = self._semantic_fill_value(column)
+                if pd.notna(fill_value):
+                    datetimes = datetimes.fillna(pd.Timestamp(fill_value))
+                result[column] = datetimes
+            else:
+                # Object dtype allows both replacement categories and np.nan,
+                # including fallback values absent from a generated Categorical.
+                result[column] = result[column].astype(object)
+
+    def _semantic_fill_value(self, column: str) -> Any:
+        """Return a semantic value suitable for generated null replacement."""
+        if column in self.dropped_constants_:
+            return self.dropped_constants_[column][0]
+
+        fill_value = self.fill_values_.get(column, np.nan)
+        if self.original_column_types_.get(column) == "datetime" and pd.notna(fill_value):
+            return self.datetime_anchor + pd.to_timedelta(
+                fill_value, unit=self.datetime_unit
+            )
+        return fill_value
+
+    def _resolve_categorical_sentinels(
+        self,
+        result: pd.DataFrame,
+        missing_mask: np.ndarray,
+        rng: np.random.Generator,
+    ) -> None:
+        """Replace generated categorical null markers outside the final mask."""
+        for column_index, column in enumerate(self.original_columns_):
+            if (
+                self.original_column_types_.get(column) != "categorical"
+                or column not in result.columns
+            ):
+                continue
+
+            series = result[column].astype(object)
+            sentinel: str | None = None
+            if self.cat_fill == "constant" and column in self.fill_values_:
+                sentinel = str(self.fill_values_[column])
+
+            is_sentinel = np.zeros(len(series), dtype=bool)
+            if sentinel is not None:
+                is_sentinel = series.astype(str).eq(sentinel).to_numpy()
+            is_generated_missing = series.isna().to_numpy() | is_sentinel
+            requires_observed = ~missing_mask[:, column_index]
+            needs_replacement = requires_observed & is_generated_missing
+
+            if needs_replacement.any():
+                valid = series[~is_generated_missing].to_numpy(dtype=object)
+                n_replacements = int(needs_replacement.sum())
+                if valid.size:
+                    replacements = rng.choice(valid, size=n_replacements, replace=True)
+                else:
+                    distribution = self.categorical_distributions_.get(column, {})
+                    fallback_values = np.asarray(list(distribution), dtype=object)
+                    fallback_probabilities = np.asarray(
+                        list(distribution.values()), dtype=float
+                    )
+                    if sentinel is not None and fallback_values.size:
+                        usable = fallback_values.astype(str) != sentinel
+                        fallback_values = fallback_values[usable]
+                        fallback_probabilities = fallback_probabilities[usable]
+                    if fallback_values.size == 0:
+                        raise RuntimeError(
+                            f"Cannot replace generated missing categorical values "
+                            f"in {column!r}: no observed fitted categories are available."
+                        )
+                    fallback_probabilities = (
+                        fallback_probabilities / fallback_probabilities.sum()
+                    )
+                    warnings.warn(
+                        f"Synthetic column {column!r} has no usable non-sentinel "
+                        "values; sampling replacements from its fitted real-data "
+                        "categorical distribution.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    replacements = rng.choice(
+                        fallback_values,
+                        size=n_replacements,
+                        replace=True,
+                        p=fallback_probabilities,
+                    )
+                series.iloc[np.flatnonzero(needs_replacement)] = replacements
+
+            result[column] = series
+
+    def _apply_missingness_mask(
+        self,
+        result: pd.DataFrame,
+        missing_mask: np.ndarray,
+    ) -> None:
+        """Apply the authoritative mask with each semantic type's null value."""
+        for column_index, column in enumerate(self.original_columns_):
+            if column not in result.columns:
+                continue
+
+            column_mask = missing_mask[:, column_index]
+            column_type = self.original_column_types_[column]
+            if column_type == "integer":
+                result[column] = result[column].mask(column_mask, pd.NA).astype("Int64")
+            elif column_type == "float":
+                result[column] = result[column].mask(column_mask, np.nan).astype(
+                    np.float64
+                )
+            elif column_type == "datetime":
+                result[column] = result[column].mask(column_mask, pd.NaT)
+            else:
+                result[column] = result[column].mask(column_mask, np.nan)
 
     @staticmethod
     def _filled_categorical(series: pd.Series, fill_val: Any) -> pd.Series:
@@ -457,6 +690,14 @@ class IFCTransformer:
         col_type: ColType = self.col_types.get(col) or infer_col_type(series)  # type: ignore[assignment]
 
         unique_vals = series.dropna().unique()
+        category_distribution: dict[str, float] | None = None
+        if col_type == "categorical":
+            observed = series[series.notna()].astype(str)
+            counts = observed.value_counts(sort=False)
+            category_distribution = {
+                str(value): float(count / counts.sum())
+                for value, count in counts.items()
+            }
         keep_missing_category = (
             col_type == "categorical"
             and self.cat_fill == "constant"
@@ -472,6 +713,8 @@ class IFCTransformer:
                 "missing_fraction": missing_fraction,
                 "is_constant": True,
                 "constant_value": const_val,
+                "column_type": col_type,
+                "category_distribution": category_distribution,
             }
 
         if col_type == "datetime":
@@ -498,6 +741,7 @@ class IFCTransformer:
             "is_constant": False,
             "column_type": col_type,
             "fill_value": fill_value,
+            "category_distribution": category_distribution,
         }
 
         if col_type == "categorical" and self.cat_encoding == "label":
@@ -626,8 +870,17 @@ class IFCTransformer:
                     for col, (value, position) in self.dropped_constants_.items()
                 },
                 "original_columns": self.original_columns_,
+                "original_column_types": self.original_column_types_,
                 "missing_counts": self.missing_counts_,
                 "missing_fractions": self.missing_fractions_,
+                "missing_pattern_distribution": [
+                    {
+                        "pattern": list(pattern),
+                        "probability": probability,
+                    }
+                    for pattern, probability in self.missing_pattern_distribution_.items()
+                ],
+                "categorical_distributions": self.categorical_distributions_,
                 "category_mappings": self.category_mappings_,
             },
         }
@@ -661,12 +914,26 @@ class IFCTransformer:
             for col, payload in fitted["dropped_constants"].items()
         }
         transformer.original_columns_ = list(fitted["original_columns"])
+        transformer.original_column_types_ = dict(fitted["original_column_types"])
         transformer.missing_counts_ = {
             col: int(count) for col, count in fitted["missing_counts"].items()
         }
         transformer.missing_fractions_ = {
             col: float(fraction)
             for col, fraction in fitted["missing_fractions"].items()
+        }
+        transformer.missing_pattern_distribution_ = {
+            tuple(int(value) for value in payload["pattern"]): float(
+                payload["probability"]
+            )
+            for payload in fitted["missing_pattern_distribution"]
+        }
+        transformer.categorical_distributions_ = {
+            col: {
+                str(category): float(probability)
+                for category, probability in distribution.items()
+            }
+            for col, distribution in fitted["categorical_distributions"].items()
         }
 
         transformer._category_encoder.reset()

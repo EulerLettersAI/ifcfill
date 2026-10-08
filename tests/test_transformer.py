@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -29,6 +31,13 @@ def fitted(sample_df) -> IFCTransformer:
     tf = IFCTransformer()
     tf.fit(sample_df)
     return tf
+
+
+def resized_rows(df: pd.DataFrame, n_rows: int) -> pd.DataFrame:
+    """Repeat transformed rows to a requested synthetic sample size."""
+    if n_rows == 0:
+        return df.iloc[:0].copy()
+    return df.iloc[np.arange(n_rows) % len(df)].reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------
@@ -275,19 +284,21 @@ def test_category_mapping_accessors_return_copies(sample_df):
 def test_label_encoding_inverse_restores_categories(sample_df):
     tf = IFCTransformer(cat_encoding="label")
     transformed = tf.fit_transform(sample_df)
-    restored = tf.inverse_transform(transformed)
-    assert list(restored["city"].iloc[[0, 2, 3]]) == ["London", "Paris", "London"]
-    assert pd.isna(restored["city"].iloc[1])
+    restored = tf.inverse_transform(transformed, random_state=10)
+    assert restored["city"].isna().sum() == 1
+    assert set(restored["city"].dropna()).issubset({"London", "Paris"})
 
 
 def test_label_encoding_inverse_rounds_and_clips_generated_codes(sample_df):
+    fit_df = pd.DataFrame({"city": ["London", "Paris", "London", "Paris"]})
     tf = IFCTransformer(cat_encoding="label")
-    transformed = tf.fit_transform(sample_df)
+    transformed = tf.fit_transform(fit_df)
     generated = transformed.copy()
     generated["city"] = [-1.4, 0.2, 0.8, 99.0]
-    restored = tf.inverse_transform(generated)
+    restored = tf.inverse_transform(generated, random_state=0)
     assert list(restored["city"].iloc[:3]) == ["London", "London", "Paris"]
-    assert pd.isna(restored["city"].iloc[3])
+    assert restored["city"].iloc[3] in {"London", "Paris"}
+    assert not restored["city"].isna().any()
 
 
 def test_label_encoding_transform_unseen_category_uses_fill_value(sample_df):
@@ -303,16 +314,18 @@ def test_categorical_missing_category_inverts_to_nan(sample_df):
     tf = IFCTransformer()
     transformed = tf.fit_transform(sample_df)
     assert transformed["city"].iloc[1] == "__ifcfill_missing__"
-    restored = tf.inverse_transform(transformed)
-    assert pd.isna(restored["city"].iloc[1])
+    restored = tf.inverse_transform(transformed, random_state=2)
+    assert restored["city"].isna().sum() == 1
+    assert "__ifcfill_missing__" not in restored["city"].astype(str).tolist()
 
 
 def test_custom_categorical_missing_category_inverts_to_nan(sample_df):
     tf = IFCTransformer(cat_fill="constant", cat_constant="UNKNOWN")
     transformed = tf.fit_transform(sample_df)
     assert transformed["city"].iloc[1] == "UNKNOWN"
-    restored = tf.inverse_transform(transformed)
-    assert pd.isna(restored["city"].iloc[1])
+    restored = tf.inverse_transform(transformed, random_state=2)
+    assert restored["city"].isna().sum() == 1
+    assert "UNKNOWN" not in restored["city"].astype(str).tolist()
 
 
 # ---------------------------------------------------------------------------
@@ -345,16 +358,14 @@ def test_datetime_missing_filled(sample_df):
 
 
 def test_inverse_datetime_restores_timestamp_dtype_and_values(sample_df):
+    complete = sample_df.drop(index=2).reset_index(drop=True)
     tf = IFCTransformer()
-    transformed = tf.fit_transform(sample_df)
+    transformed = tf.fit_transform(complete)
 
     restored = tf.inverse_transform(transformed)
 
     assert pd.api.types.is_datetime64_any_dtype(restored["dates"])
-    assert restored["dates"].iloc[0] == sample_df["dates"].iloc[0]
-    assert restored["dates"].iloc[1] == sample_df["dates"].iloc[1]
-    assert restored["dates"].iloc[2] == pd.Timestamp("2021-06-15")
-    assert restored["dates"].iloc[3] == sample_df["dates"].iloc[3]
+    pd.testing.assert_series_equal(restored["dates"], complete["dates"])
 
 
 def test_inverse_datetime_restores_seconds_unit():
@@ -378,7 +389,7 @@ def test_inverse_datetime_restore_missing_uses_nat(sample_df):
     tf = IFCTransformer()
     transformed = tf.fit_transform(sample_df)
 
-    restored = tf.inverse_transform(transformed, restore_missing=True, random_state=1)
+    restored = tf.inverse_transform(transformed, random_state=1)
 
     assert pd.api.types.is_datetime64_any_dtype(restored["dates"])
     assert restored["dates"].isna().sum() == 1
@@ -463,33 +474,22 @@ def test_inverse_constant_value_is_correct(fitted, sample_df):
 
 def test_inverse_restore_missing_introduces_nans(fitted, sample_df):
     transformed = fitted.transform(sample_df)
-    restored = fitted.inverse_transform(transformed, restore_missing=True, random_state=42)
-    # At least one non-constant column should have NaN reintroduced
-    non_const = [c for c in sample_df.columns if c not in fitted.dropped_constants_]
-    total_nan = sum(restored[c].isna().sum() for c in non_const if c in restored.columns)
-    assert total_nan > 0
+    restored = fitted.inverse_transform(transformed, random_state=42)
+    for col in ["age", "salary", "city", "score", "dates"]:
+        assert restored[col].isna().sum() == 1
 
 
 def test_inverse_restore_missing_reproducible(fitted, sample_df):
     transformed = fitted.transform(sample_df)
-    r1 = fitted.inverse_transform(transformed, restore_missing=True, random_state=0)
-    r2 = fitted.inverse_transform(transformed, restore_missing=True, random_state=0)
+    r1 = fitted.inverse_transform(transformed, random_state=0)
+    r2 = fitted.inverse_transform(transformed, random_state=0)
     pd.testing.assert_frame_equal(r1, r2)
 
 
-def test_inverse_no_restore_missing_has_no_nan_in_non_const(fitted, sample_df):
+def test_inverse_restore_missing_argument_is_removed(fitted, sample_df):
     transformed = fitted.transform(sample_df)
-    restored = fitted.inverse_transform(transformed, restore_missing=False)
-    # Categorical missing values are restored deterministically from the learned
-    # missing category. Numeric/datetime columns should not get statistical NaNs.
-    assert pd.isna(restored["city"].iloc[1])
-    non_const = [
-        c
-        for c in restored.columns
-        if c not in fitted.dropped_constants_ and fitted.column_types_.get(c) != "categorical"
-    ]
-    for col in non_const:
-        assert restored[col].isna().sum() == 0, f"{col} should have no NaN"
+    with pytest.raises(TypeError, match="restore_missing"):
+        fitted.inverse_transform(transformed, restore_missing=False)  # type: ignore[call-arg]
 
 
 def test_save_and_load_preserves_inverse_transform_state(tmp_path, sample_df):
@@ -499,15 +499,16 @@ def test_save_and_load_preserves_inverse_transform_state(tmp_path, sample_df):
 
     tf.save(state_file)
     loaded = IFCTransformer.load(state_file)
-    restored = loaded.inverse_transform(transformed)
+    restored = loaded.inverse_transform(transformed, random_state=17)
+    expected = tf.inverse_transform(transformed, random_state=17)
 
     assert loaded.category_mappings_ == tf.category_mappings_
     assert loaded.inverse_category_mappings_ == tf.inverse_category_mappings_
+    assert loaded.categorical_distributions_ == tf.categorical_distributions_
+    assert loaded.missing_pattern_distribution_ == tf.missing_pattern_distribution_
     assert list(restored.columns) == list(sample_df.columns)
-    assert list(restored["city"].iloc[[0, 2, 3]]) == ["London", "Paris", "London"]
-    assert pd.isna(restored["city"].iloc[1])
+    pd.testing.assert_frame_equal(restored, expected)
     assert pd.api.types.is_datetime64_any_dtype(restored["dates"])
-    assert restored["dates"].iloc[0] == sample_df["dates"].iloc[0]
     assert (restored["const"] == "x").all()
 
 
@@ -527,6 +528,292 @@ def test_save_and_load_preserves_transform_state(tmp_path, sample_df):
 def test_save_before_fit_raises(tmp_path):
     with pytest.raises(RuntimeError, match="not fitted"):
         IFCTransformer().save(tmp_path / "ifcfill-state.json")
+
+
+# ---------------------------------------------------------------------------
+# Feature 9 – authoritative marginal and joint missingness reconstruction
+# ---------------------------------------------------------------------------
+
+def test_invalid_missingness_restore_raises(fitted, sample_df):
+    transformed = fitted.transform(sample_df)
+    with pytest.raises(ValueError, match="missingness_restore"):
+        fitted.inverse_transform(  # type: ignore[arg-type]
+            transformed, missingness_restore="conditional"
+        )
+
+
+def test_default_missingness_restore_is_marginal(fitted, sample_df):
+    transformed = fitted.transform(sample_df)
+    default = fitted.inverse_transform(transformed, random_state=4)
+    explicit = fitted.inverse_transform(
+        transformed, missingness_restore="marginal", random_state=4
+    )
+    pd.testing.assert_frame_equal(default, explicit)
+
+
+@pytest.mark.parametrize("n_rows", [3, 8, 13])
+def test_marginal_restoration_all_types_and_sample_sizes(n_rows):
+    df = pd.DataFrame(
+        {
+            "integer": pd.Series([1, 2, pd.NA, 4, 5, pd.NA, 7, 8], dtype="Int64"),
+            "float": [1.5, np.nan, 3.5, 4.5, 5.5, np.nan, 7.5, 8.5],
+            "datetime": pd.to_datetime(
+                [
+                    "2024-01-01",
+                    None,
+                    "2024-01-03",
+                    "2024-01-04",
+                    "2024-01-05",
+                    None,
+                    "2024-01-07",
+                    "2024-01-08",
+                ]
+            ),
+            "category": ["a", None, "b", "a", "b", None, "a", "b"],
+        }
+    )
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(df)
+    synthetic = resized_rows(transformed, n_rows)
+
+    restored = tf.inverse_transform(synthetic, random_state=8)
+
+    expected_missing = round(0.25 * n_rows)
+    assert restored.isna().sum().to_dict() == {
+        column: expected_missing for column in df.columns
+    }
+    assert str(restored["integer"].dtype) == "Int64"
+    assert pd.api.types.is_float_dtype(restored["float"])
+    assert pd.api.types.is_datetime64_any_dtype(restored["datetime"])
+    assert "__ifcfill_missing__" not in restored["category"].astype(str).tolist()
+
+
+def _dependent_missingness_data() -> pd.DataFrame:
+    df = pd.DataFrame(
+        {
+            "A": np.arange(10, dtype=float),
+            "B": np.arange(10, dtype=float) + 20,
+            "C": np.arange(10, dtype=float) + 40,
+        }
+    )
+    df.loc[5:7, ["A", "B"]] = np.nan
+    df.loc[8:9, "A"] = np.nan
+    return df
+
+
+@pytest.mark.parametrize(
+    ("n_rows", "expected"),
+    [
+        (7, {(0, 0, 0): 4, (1, 1, 0): 2, (1, 0, 0): 1}),
+        (10, {(0, 0, 0): 5, (1, 1, 0): 3, (1, 0, 0): 2}),
+        (13, {(0, 0, 0): 6, (1, 1, 0): 4, (1, 0, 0): 3}),
+    ],
+)
+def test_joint_restoration_uses_largest_remainder_for_sample_sizes(n_rows, expected):
+    df = _dependent_missingness_data()
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(df)
+
+    restored = tf.inverse_transform(
+        resized_rows(transformed, n_rows),
+        missingness_restore="joint",
+        random_state=11,
+    )
+
+    patterns = restored.isna().astype(int).value_counts(sort=False).to_dict()
+    assert patterns == expected
+
+
+def test_joint_distribution_is_learned_before_transformation():
+    tf = IFCTransformer().fit(_dependent_missingness_data())
+    assert tf.missing_pattern_distribution_ == {
+        (0, 0, 0): pytest.approx(0.5),
+        (1, 0, 0): pytest.approx(0.2),
+        (1, 1, 0): pytest.approx(0.3),
+    }
+
+
+def test_joint_restoration_includes_categorical_columns():
+    df = _dependent_missingness_data()
+    df["B"] = ["x", "y", "x", "y", "x", None, None, None, "x", "y"]
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(df)
+
+    restored = tf.inverse_transform(
+        transformed, missingness_restore="joint", random_state=19
+    )
+
+    patterns = restored.isna().astype(int).value_counts(sort=False).to_dict()
+    assert patterns == {(0, 0, 0): 5, (1, 1, 0): 3, (1, 0, 0): 2}
+    assert "__ifcfill_missing__" not in restored["B"].astype(str).tolist()
+
+
+def test_marginal_restoration_does_not_force_joint_dependency():
+    df = _dependent_missingness_data()
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(df)
+    restored = tf.inverse_transform(
+        resized_rows(transformed, 100),
+        missingness_restore="marginal",
+        random_state=3,
+    )
+
+    assert restored["A"].isna().sum() == 50
+    assert restored["B"].isna().sum() == 30
+    assert ((restored["A"].notna()) & (restored["B"].isna())).any()
+
+
+@pytest.mark.parametrize("mode", ["marginal", "joint"])
+def test_missingness_reconstruction_is_reproducible(mode):
+    df = _dependent_missingness_data()
+    tf = IFCTransformer()
+    transformed = resized_rows(tf.fit_transform(df), 23)
+
+    first = tf.inverse_transform(
+        transformed, missingness_restore=mode, random_state=123
+    )
+    second = tf.inverse_transform(
+        transformed, missingness_restore=mode, random_state=123
+    )
+
+    pd.testing.assert_frame_equal(first, second)
+
+
+def test_constant_with_missing_restores_missingness_and_integer_dtype():
+    df = pd.DataFrame(
+        {"constant_integer": pd.Series([5, pd.NA, 5, pd.NA, 5], dtype="Int64")}
+    )
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(df)
+    assert "constant_integer" in tf.dropped_constants_
+
+    restored = tf.inverse_transform(transformed, random_state=0)
+
+    assert restored["constant_integer"].isna().sum() == 2
+    assert str(restored["constant_integer"].dtype) == "Int64"
+    assert (restored["constant_integer"].dropna() == 5).all()
+
+
+# ---------------------------------------------------------------------------
+# Feature 10 – categorical sentinel authority and fallback
+# ---------------------------------------------------------------------------
+
+def _categorical_transformer() -> tuple[IFCTransformer, pd.DataFrame]:
+    real = pd.DataFrame(
+        {"category": ["A", "A", "A", "A", "A", "B", "B", "B", None, None]}
+    )
+    tf = IFCTransformer()
+    return tf, tf.fit_transform(real)
+
+
+def test_excess_generated_sentinels_are_replaced_from_synthetic_values():
+    tf, transformed = _categorical_transformer()
+    generated = transformed.copy()
+    generated["category"] = ["__ifcfill_missing__"] * 6 + ["SYNTHETIC"] * 4
+
+    restored = tf.inverse_transform(generated, random_state=6)
+
+    assert restored["category"].isna().sum() == 2
+    assert set(restored["category"].dropna()) == {"SYNTHETIC"}
+    assert "__ifcfill_missing__" not in restored["category"].astype(str).tolist()
+
+
+def test_fewer_generated_sentinels_does_not_reduce_final_missingness():
+    tf, transformed = _categorical_transformer()
+    generated = transformed.copy()
+    generated["category"] = "SYNTHETIC"
+
+    restored = tf.inverse_transform(generated, random_state=6)
+
+    assert restored["category"].isna().sum() == 2
+    assert set(restored["category"].dropna()) == {"SYNTHETIC"}
+
+
+def test_all_generated_sentinels_fall_back_to_fitted_distribution():
+    tf, transformed = _categorical_transformer()
+    generated = transformed.copy()
+    generated["category"] = "__ifcfill_missing__"
+
+    with pytest.warns(UserWarning, match="fitted real-data categorical distribution"):
+        first = tf.inverse_transform(generated, random_state=91)
+    with pytest.warns(UserWarning):
+        second = tf.inverse_transform(generated, random_state=91)
+
+    pd.testing.assert_frame_equal(first, second)
+    assert first["category"].isna().sum() == 2
+    assert set(first["category"].dropna()).issubset({"A", "B"})
+    assert "B" in set(first["category"].dropna())
+    assert "__ifcfill_missing__" not in first["category"].astype(str).tolist()
+
+
+# ---------------------------------------------------------------------------
+# Feature 11 – semantic numeric restoration
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("col_types", [None, {"value": "integer"}])
+def test_integer_values_are_rounded_to_nullable_int64_without_clipping(col_types):
+    tf = IFCTransformer(col_types=col_types)
+    tf.fit(pd.DataFrame({"value": [1, 2, 3]}))
+    generated = pd.DataFrame({"value": [24.7, 31.2, 100.9]})
+
+    restored = tf.inverse_transform(generated, random_state=0)
+
+    assert restored["value"].tolist() == [25, 31, 101]
+    assert str(restored["value"].dtype) == "Int64"
+
+
+def test_integer_dtype_remains_nullable_with_reconstructed_missingness():
+    real = pd.DataFrame(
+        {"value": pd.Series([1, pd.NA, 3, 4], dtype="Int64")}
+    )
+    tf = IFCTransformer()
+    tf.fit(real)
+    generated = pd.DataFrame({"value": [24.7, 31.2, 42.9, 50.1]})
+
+    restored = tf.inverse_transform(generated, random_state=2)
+
+    assert str(restored["value"].dtype) == "Int64"
+    assert restored["value"].isna().sum() == 1
+    assert set(restored["value"].dropna()).issubset({25, 31, 43, 50})
+
+
+def test_float_dtype_remains_float_after_missingness_reconstruction():
+    real = pd.DataFrame({"value": [1.5, np.nan, 3.5, 4.5]})
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(real)
+
+    restored = tf.inverse_transform(transformed, random_state=2)
+
+    assert pd.api.types.is_float_dtype(restored["value"])
+    assert restored["value"].isna().sum() == 1
+
+
+def test_save_load_preserves_marginal_and_joint_reconstruction(tmp_path):
+    df = _dependent_missingness_data()
+    tf = IFCTransformer()
+    transformed = resized_rows(tf.fit_transform(df), 13)
+    state_file = tmp_path / "ifcfill-state-v2.json"
+    tf.save(state_file)
+    loaded = IFCTransformer.load(state_file)
+
+    assert loaded.missing_pattern_distribution_ == tf.missing_pattern_distribution_
+    assert loaded.categorical_distributions_ == tf.categorical_distributions_
+    for mode in ["marginal", "joint"]:
+        expected = tf.inverse_transform(
+            transformed, missingness_restore=mode, random_state=77
+        )
+        actual = loaded.inverse_transform(
+            transformed, missingness_restore=mode, random_state=77
+        )
+        pd.testing.assert_frame_equal(actual, expected)
+
+
+def test_old_saved_state_fails_with_clear_version_error(tmp_path):
+    state_file = tmp_path / "ifcfill-state-v1.json"
+    state_file.write_text(json.dumps({"state_version": 1}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="expected 2.*Refit"):
+        IFCTransformer.load(state_file)
 
 
 # ---------------------------------------------------------------------------

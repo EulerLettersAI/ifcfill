@@ -7,6 +7,43 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.4.0] — 2026-10-08
+
+### Breaking changes
+
+- `IFCTransformer.inverse_transform()` now always reconstructs missingness.
+  Removed the `restore_missing` argument and added
+  `missingness_restore="marginal" | "joint"`, defaulting to `"marginal"`.
+- Advanced the saved transformer state format to version 2. Version 1 state
+  files fail with an explicit unsupported-version error and must be refitted.
+
+### Added
+
+- **IFCFill-Marginal**, preserving each fitted per-variable missingness
+  distribution `P(M_j)` with exact rounded counts sampled without replacement.
+- **IFCFill-Joint**, preserving the empirical row-wise pattern distribution
+  `P(M_1, ..., M_p)` with largest-remainder count allocation.
+- Persisted joint-pattern state and observed categorical distributions for
+  categorical sentinel fallback.
+
+### Changed
+
+- Missingness is learned before imputation, encoding, or constant removal and is
+  reconstructed for every original type, including categorical and constant
+  columns.
+- Categorical sentinels such as `__ifcfill_missing__` are synthesis-time values
+  only. The reconstructed IFCFill mask is authoritative; excess sentinels are
+  replaced from generated values or the fitted real-data distribution.
+
+### Fixed
+
+- Integer columns are rounded during inverse transformation and returned as
+  nullable pandas `Int64`, with no clipping to fitted bounds.
+- Datetime and float columns retain their semantic dtypes after missingness
+  reconstruction.
+
+---
+
 ## [0.3.6] — 2026-07-20
 
 ### Changed

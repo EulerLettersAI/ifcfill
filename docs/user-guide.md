@@ -113,8 +113,9 @@ tf = IFCTransformer(
 | `"mode"` | Most frequent non-null value |
 
 The default categorical strategy treats missing categorical values as their own
-learnable category. If a generator later emits that category, `inverse_transform()`
-converts it back to a missing value.
+learnable category while data is prepared for synthesis. The category is an
+internal representation only: `inverse_transform()` reconstructs the final
+categorical missingness from the selected fitted missingness distribution.
 
 The default sentinel is deliberately namespaced as `"__ifcfill_missing__"` to
 reduce collisions with real categories such as `"missing"` or `"unknown"`.
@@ -181,8 +182,9 @@ tf.get_category_mapping("city") # defensive copy for one column
 `inverse_transform()` decodes label-encoded columns back to their original
 category values. This is designed for unsupervised synthetic-data workflows:
 generated numeric category codes are rounded to the nearest integer and clipped
-to the known code range before decoding. If the decoded value is the learned
-categorical missing category, it is converted back to a missing value.
+to the known code range before decoding. A decoded missing sentinel is then
+resolved against IFCFill's final reconstructed missingness mask rather than
+being treated as authoritative itself.
 
 When new or unseen categories appear during `transform()`, they fall back to the
 learned categorical fill value before encoding.
@@ -214,8 +216,9 @@ synthetic_df = loaded_tf.inverse_transform(synthetic_ifc)
 ```
 
 The JSON state includes the learned column types, fill values, dropped
-constants, missing-value statistics, categorical label mappings, datetime
-settings, and original column order.
+constants, marginal and joint missingness distributions, categorical fallback
+distributions, categorical label mappings, datetime settings, and original
+column order.
 
 ---
 
@@ -266,12 +269,13 @@ print(tf.dropped_constants_)
 
 ## Missing value tracking
 
-After `fit()`, three attributes and one property describe the missing-data
+After `fit()`, four attributes and one property describe the missing-data
 distribution of the **original** (pre-transform) data:
 
 ```python
 tf.missing_counts_     # dict: column → number of missing values
 tf.missing_fractions_  # dict: column → fraction of missing values
+tf.missing_pattern_distribution_  # row-pattern tuple → fitted probability
 tf.missing_report_     # pd.DataFrame with columns: column, type, missing_count, missing_fraction
 ```
 
@@ -294,24 +298,51 @@ Example report:
 
 ## Inverse transform
 
-`inverse_transform()` reverses the structural changes made by `transform()`:
+`inverse_transform()` reverses the structural changes made by `transform()` and
+always reconstructs missingness:
 
 1. **Re-inserts** dropped constant columns with their original values
 2. **Decodes** label-encoded categorical integer codes when `cat_encoding="label"`
-3. **Converts** learned categorical missing categories back to missing values
-4. **Reorders** columns to match the original input order
-5. **Optionally re-introduces** non-categorical missing values at the same rates as the original data
+3. **Restores** datetime and semantic numeric types (`Int64` for integers)
+4. **Builds** a marginal or joint missingness mask over every original column
+5. **Resolves** categorical sentinels wherever the final mask requires an observed value
+6. **Applies** type-appropriate missing values and restores original column order
 
 ```python
 restored = tf.inverse_transform(
     transformed_df,
-    restore_missing=True,  # statistical restoration for imputed non-categoricals
-    random_state=0,        # make it reproducible
+    missingness_restore="marginal",  # default
+    random_state=0,
 )
 ```
 
-!!! note
-    For categorical columns with `cat_fill="constant"`, missingness is restored
-    deterministically when the missing category appears. For numeric and datetime
-    columns, `restore_missing=True` statistically reintroduces missing values at
-    the rates learned during `fit()`.
+### IFCFill-Marginal
+
+`missingness_restore="marginal"` preserves the fitted per-variable missingness
+distribution `P(M_j)`. For `n` reconstructed rows, each original column receives
+exactly `round(missing_fraction * n)` missing positions selected without
+replacement. This includes integer, float, datetime, categorical, and dropped
+constant columns.
+
+### IFCFill-Joint
+
+`missingness_restore="joint"` preserves the fitted empirical row-wise
+missingness-pattern distribution `P(M_1, ..., M_p)`. IFCFill learns full masks
+from raw rows before imputation or constant removal. During reconstruction it
+uses largest-remainder allocation so pattern counts sum exactly to the synthetic
+sample size, then shuffles the patterns across rows.
+
+```python
+restored_joint = tf.inverse_transform(
+    transformed_df,
+    missingness_restore="joint",
+    random_state=0,
+)
+```
+
+The `__ifcfill_missing__` categorical sentinel exists only to make incomplete
+categorical data synthesis-ready. It never determines final missingness. If a
+generator emits excess sentinels, IFCFill replaces them from valid generated
+categories; if none exist, it warns and samples from the fitted real categorical
+distribution. If too few sentinels are generated, the final mask still assigns
+the required missing positions.

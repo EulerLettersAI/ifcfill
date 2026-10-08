@@ -108,9 +108,8 @@ print(tf.get_category_mappings())
 ```
 
 Categorical values are filled first, then the label encoder maps the resulting
-categories to integer codes. During inverse transformation, the integer codes are
-decoded back to categories before missing categories are restored to missing
-values.
+categories to integer codes. During inverse transformation, integer codes are
+decoded before IFCFill applies its authoritative reconstructed missingness mask.
 
 ---
 
@@ -134,11 +133,16 @@ print(tf.missing_report_)
 ```python
 restored = tf.inverse_transform(
     transformed,
-    restore_missing=True,   # statistical restoration for imputed non-categoricals
-    random_state=42,        # reproducible
+    missingness_restore="marginal",  # fitted P(M_j); this is the default
+    random_state=42,
 )
 print(restored)
 ```
+
+Use `missingness_restore="joint"` to reconstruct the fitted empirical row-wise
+distribution `P(M_1, ..., M_p)` instead. Both modes cover all original column
+types. The categorical synthesis sentinel is internal and does not decide which
+final values are missing.
 
 ---
 
