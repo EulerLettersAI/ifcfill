@@ -28,6 +28,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Promoted the package development-status classifier from Alpha to Beta.
 - Missingness is learned before imputation, encoding, or constant removal and is
   reconstructed for every original type, including categorical and constant
   columns.
