@@ -964,9 +964,8 @@ machine:</p>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">get_category_mappings</span><span class="p">())</span>
 </code></pre></div>
 <p>Categorical values are filled first, then the label encoder maps the resulting
-categories to integer codes. During inverse transformation, the integer codes are
-decoded back to categories before missing categories are restored to missing
-values.</p>
+categories to integer codes. During inverse transformation, integer codes are
+decoded before IFCFill applies its authoritative reconstructed missingness mask.</p>
 <hr />
 <h3 id="6-check-what-happened">6 — Check what happened<a class="headerlink" href="#6-check-what-happened" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># See types detected for each column</span>
@@ -982,11 +981,15 @@ values.</p>
 <h3 id="7-restore-the-original-structure">7 — Restore the original structure<a class="headerlink" href="#7-restore-the-original-structure" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="n">transformed</span><span class="p">,</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">restore_missing</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>   <span class="c1"># statistical restoration for imputed non-categoricals</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">random_state</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span>        <span class="c1"># reproducible</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">missingness_restore</span><span class="o">=</span><span class="s2">"marginal"</span><span class="p">,</span>  <span class="c1"># fitted P(M_j); this is the default</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">random_state</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span>
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="p">)</span>
 <a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">restored</span><span class="p">)</span>
 </code></pre></div>
+<p>Use <code>missingness_restore="joint"</code> to reconstruct the fitted empirical row-wise
+distribution <code>P(M_1, ..., M_p)</code> instead. Both modes cover all original column
+types. The categorical synthesis sentinel is internal and does not decide which
+final values are missing.</p>
 <hr />
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>

@@ -702,6 +702,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Inverse transform">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ifcfill-marginal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IFCFill-Marginal
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ifcfill-joint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IFCFill-Joint
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -967,6 +995,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Inverse transform">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ifcfill-marginal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IFCFill-Marginal
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ifcfill-joint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IFCFill-Joint
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -1145,8 +1201,9 @@ Other columns are still inferred automatically.</p>
 </tbody>
 </table>
 <p>The default categorical strategy treats missing categorical values as their own
-learnable category. If a generator later emits that category, <code>inverse_transform()</code>
-converts it back to a missing value.</p>
+learnable category while data is prepared for synthesis. The category is an
+internal representation only: <code>inverse_transform()</code> reconstructs the final
+categorical missingness from the selected fitted missingness distribution.</p>
 <p>The default sentinel is deliberately namespaced as <code>"__ifcfill_missing__"</code> to
 reduce collisions with real categories such as <code>"missing"</code> or <code>"unknown"</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">tf</span> <span class="o">=</span> <span class="n">IFCTransformer</span><span class="p">(</span>
@@ -1191,8 +1248,9 @@ encoded into integer codes:</p>
 <p><code>inverse_transform()</code> decodes label-encoded columns back to their original
 category values. This is designed for unsupervised synthetic-data workflows:
 generated numeric category codes are rounded to the nearest integer and clipped
-to the known code range before decoding. If the decoded value is the learned
-categorical missing category, it is converted back to a missing value.</p>
+to the known code range before decoding. A decoded missing sentinel is then
+resolved against IFCFill's final reconstructed missingness mask rather than
+being treated as authoritative itself.</p>
 <p>When new or unseen categories appear during <code>transform()</code>, they fall back to the
 learned categorical fill value before encoding.</p>
 <div class="admonition note">
@@ -1215,8 +1273,9 @@ restored:</p>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">synthetic_df</span> <span class="o">=</span> <span class="n">loaded_tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span><span class="n">synthetic_ifc</span><span class="p">)</span>
 </code></pre></div>
 <p>The JSON state includes the learned column types, fill values, dropped
-constants, missing-value statistics, categorical label mappings, datetime
-settings, and original column order.</p>
+constants, marginal and joint missingness distributions, categorical fallback
+distributions, categorical label mappings, datetime settings, and original
+column order.</p>
 <hr />
 <h2 id="datetime-conversion">Datetime conversion<a class="headerlink" href="#datetime-conversion" title="Permanent link">&para;</a></h2>
 <p>Datetime columns are converted to integers representing elapsed time from an anchor
@@ -1268,11 +1327,12 @@ category.</p>
 </code></pre></div>
 <hr />
 <h2 id="missing-value-tracking">Missing value tracking<a class="headerlink" href="#missing-value-tracking" title="Permanent link">&para;</a></h2>
-<p>After <code>fit()</code>, three attributes and one property describe the missing-data
+<p>After <code>fit()</code>, four attributes and one property describe the missing-data
 distribution of the <strong>original</strong> (pre-transform) data:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">tf</span><span class="o">.</span><span class="n">missing_counts_</span>     <span class="c1"># dict: column → number of missing values</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">tf</span><span class="o">.</span><span class="n">missing_fractions_</span>  <span class="c1"># dict: column → fraction of missing values</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">tf</span><span class="o">.</span><span class="n">missing_report_</span>     <span class="c1"># pd.DataFrame with columns: column, type, missing_count, missing_fraction</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">tf</span><span class="o">.</span><span class="n">missing_pattern_distribution_</span>  <span class="c1"># row-pattern tuple → fitted probability</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="n">tf</span><span class="o">.</span><span class="n">missing_report_</span>     <span class="c1"># pd.DataFrame with columns: column, type, missing_count, missing_fraction</span>
 </code></pre></div>
 <p>Example report:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>    column        type  missing_count  missing_fraction
@@ -1289,27 +1349,46 @@ are dropped from the transformed output.</p>
 </div>
 <hr />
 <h2 id="inverse-transform">Inverse transform<a class="headerlink" href="#inverse-transform" title="Permanent link">&para;</a></h2>
-<p><code>inverse_transform()</code> reverses the structural changes made by <code>transform()</code>:</p>
+<p><code>inverse_transform()</code> reverses the structural changes made by <code>transform()</code> and
+always reconstructs missingness:</p>
 <ol>
 <li><strong>Re-inserts</strong> dropped constant columns with their original values</li>
 <li><strong>Decodes</strong> label-encoded categorical integer codes when <code>cat_encoding="label"</code></li>
-<li><strong>Converts</strong> learned categorical missing categories back to missing values</li>
-<li><strong>Reorders</strong> columns to match the original input order</li>
-<li><strong>Optionally re-introduces</strong> non-categorical missing values at the same rates as the original data</li>
+<li><strong>Restores</strong> datetime and semantic numeric types (<code>Int64</code> for integers)</li>
+<li><strong>Builds</strong> a marginal or joint missingness mask over every original column</li>
+<li><strong>Resolves</strong> categorical sentinels wherever the final mask requires an observed value</li>
+<li><strong>Applies</strong> type-appropriate missing values and restores original column order</li>
 </ol>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span>
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    <span class="n">transformed_df</span><span class="p">,</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="n">restore_missing</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># statistical restoration for imputed non-categoricals</span>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>        <span class="c1"># make it reproducible</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="n">missingness_restore</span><span class="o">=</span><span class="s2">"marginal"</span><span class="p">,</span>  <span class="c1"># default</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
 <a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="p">)</span>
 </code></pre></div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>For categorical columns with <code>cat_fill="constant"</code>, missingness is restored
-deterministically when the missing category appears. For numeric and datetime
-columns, <code>restore_missing=True</code> statistically reintroduces missing values at
-the rates learned during <code>fit()</code>.</p>
-</div>
+<h3 id="ifcfill-marginal">IFCFill-Marginal<a class="headerlink" href="#ifcfill-marginal" title="Permanent link">&para;</a></h3>
+<p><code>missingness_restore="marginal"</code> preserves the fitted per-variable missingness
+distribution <code>P(M_j)</code>. For <code>n</code> reconstructed rows, each original column receives
+exactly <code>round(missing_fraction * n)</code> missing positions selected without
+replacement. This includes integer, float, datetime, categorical, and dropped
+constant columns.</p>
+<h3 id="ifcfill-joint">IFCFill-Joint<a class="headerlink" href="#ifcfill-joint" title="Permanent link">&para;</a></h3>
+<p><code>missingness_restore="joint"</code> preserves the fitted empirical row-wise
+missingness-pattern distribution <code>P(M_1, ..., M_p)</code>. IFCFill learns full masks
+from raw rows before imputation or constant removal. During reconstruction it
+uses largest-remainder allocation so pattern counts sum exactly to the synthetic
+sample size, then shuffles the patterns across rows.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">restored_joint</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    <span class="n">transformed_df</span><span class="p">,</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    <span class="n">missingness_restore</span><span class="o">=</span><span class="s2">"joint"</span><span class="p">,</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>    <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="p">)</span>
+</code></pre></div>
+<p>The <code>__ifcfill_missing__</code> categorical sentinel exists only to make incomplete
+categorical data synthesis-ready. It never determines final missingness. If a
+generator emits excess sentinels, IFCFill replaces them from valid generated
+categories; if none exist, it warns and samples from the fitted real categorical
+distribution. If too few sentinels are generated, the final mask still assigns
+the required missing positions.</p>
 
 
 
