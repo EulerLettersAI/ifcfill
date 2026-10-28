@@ -542,11 +542,11 @@ def test_invalid_missingness_restore_raises(fitted, sample_df):
         )
 
 
-def test_default_missingness_restore_is_marginal(fitted, sample_df):
+def test_default_missingness_restore_is_generated(fitted, sample_df):
     transformed = fitted.transform(sample_df)
     default = fitted.inverse_transform(transformed, random_state=4)
     explicit = fitted.inverse_transform(
-        transformed, missingness_restore="marginal", random_state=4
+        transformed, missingness_restore="generated", random_state=4
     )
     pd.testing.assert_frame_equal(default, explicit)
 
@@ -711,7 +711,9 @@ def test_excess_generated_sentinels_are_replaced_from_synthetic_values():
     generated = transformed.copy()
     generated["category"] = ["__ifcfill_missing__"] * 6 + ["SYNTHETIC"] * 4
 
-    restored = tf.inverse_transform(generated, random_state=6)
+    restored = tf.inverse_transform(
+        generated, missingness_restore="marginal", random_state=6
+    )
 
     assert restored["category"].isna().sum() == 2
     assert set(restored["category"].dropna()) == {"SYNTHETIC"}
@@ -723,7 +725,9 @@ def test_fewer_generated_sentinels_does_not_reduce_final_missingness():
     generated = transformed.copy()
     generated["category"] = "SYNTHETIC"
 
-    restored = tf.inverse_transform(generated, random_state=6)
+    restored = tf.inverse_transform(
+        generated, missingness_restore="marginal", random_state=6
+    )
 
     assert restored["category"].isna().sum() == 2
     assert set(restored["category"].dropna()) == {"SYNTHETIC"}
@@ -735,9 +739,13 @@ def test_all_generated_sentinels_fall_back_to_fitted_distribution():
     generated["category"] = "__ifcfill_missing__"
 
     with pytest.warns(UserWarning, match="fitted real-data categorical distribution"):
-        first = tf.inverse_transform(generated, random_state=91)
+        first = tf.inverse_transform(
+            generated, missingness_restore="marginal", random_state=91
+        )
     with pytest.warns(UserWarning):
-        second = tf.inverse_transform(generated, random_state=91)
+        second = tf.inverse_transform(
+            generated, missingness_restore="marginal", random_state=91
+        )
 
     pd.testing.assert_frame_equal(first, second)
     assert first["category"].isna().sum() == 2
@@ -770,7 +778,9 @@ def test_integer_dtype_remains_nullable_with_reconstructed_missingness():
     tf.fit(real)
     generated = pd.DataFrame({"value": [24.7, 31.2, 42.9, 50.1]})
 
-    restored = tf.inverse_transform(generated, random_state=2)
+    restored = tf.inverse_transform(
+        generated, missingness_restore="marginal", random_state=2
+    )
 
     assert str(restored["value"].dtype) == "Int64"
     assert restored["value"].isna().sum() == 1
@@ -812,8 +822,177 @@ def test_old_saved_state_fails_with_clear_version_error(tmp_path):
     state_file = tmp_path / "ifcfill-state-v1.json"
     state_file.write_text(json.dumps({"state_version": 1}), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="expected 2.*Refit"):
+    with pytest.raises(ValueError, match="expected 3.*Refit"):
         IFCTransformer.load(state_file)
+
+
+# ---------------------------------------------------------------------------
+# Feature 12 – missingness flags and generated / hybrid reconstruction
+# ---------------------------------------------------------------------------
+
+def _mar_frame(n_rows: int = 400) -> pd.DataFrame:
+    """y is missing exactly when x is large (missing at random given x)."""
+    rng = np.random.default_rng(0)
+    x = rng.normal(size=n_rows)
+    y = rng.normal(size=n_rows)
+    y[x > np.quantile(x, 0.7)] = np.nan
+    return pd.DataFrame({"x": x, "y": y})
+
+
+def test_flags_added_only_for_numeric_and_datetime_columns_with_nulls(sample_df):
+    df = sample_df.assign(complete=[1.5, 2.5, 3.5, 4.5])
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(df)
+
+    assert tf.missing_flag_columns_ == {
+        "age": "age__ifc_missing",
+        "salary": "salary__ifc_missing",
+        "score": "score__ifc_missing",
+        "dates": "dates__ifc_missing",
+    }
+    assert "city__ifc_missing" not in transformed.columns
+    assert "complete__ifc_missing" not in transformed.columns
+
+
+def test_flag_follows_source_column_and_marks_nulls(sample_df):
+    transformed = IFCTransformer().fit_transform(sample_df)
+    columns = list(transformed.columns)
+
+    assert columns[columns.index("age") + 1] == "age__ifc_missing"
+    assert transformed["salary__ifc_missing"].tolist() == [0, 1, 0, 0]
+    assert transformed["salary__ifc_missing"].dtype == np.int64
+
+
+def test_flag_name_avoids_existing_column():
+    df = pd.DataFrame({"a": [1.0, None, 3.0], "a__ifc_missing": ["p", "q", "r"]})
+    tf = IFCTransformer()
+    tf.fit(df)
+    assert tf.missing_flag_columns_ == {"a": "a__ifc_missing_"}
+
+
+def test_missing_flags_can_be_disabled(sample_df):
+    tf = IFCTransformer(missing_flags=False)
+    transformed = tf.fit_transform(sample_df)
+    assert tf.missing_flag_columns_ == {}
+    assert not any(col.endswith("__ifc_missing") for col in transformed.columns)
+
+
+def test_already_transformed_data_with_flags_is_detected(sample_df):
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(sample_df)
+    with pytest.warns(UserWarning, match="already transformed"):
+        again = tf.transform(transformed)
+    pd.testing.assert_frame_equal(again, transformed)
+
+
+def test_generated_mode_uses_generated_flags_and_sentinels():
+    real = pd.DataFrame(
+        {
+            "value": [1.5, np.nan, 3.5, 4.5, np.nan, 6.5],
+            "group": ["a", "b", None, "a", "b", None],
+        }
+    )
+    tf = IFCTransformer()
+    generated = tf.fit_transform(real)
+    generated["value__ifc_missing"] = [1, 1, 1, 0, 0, 0]
+    generated["group"] = pd.Categorical(
+        ["a", "__ifcfill_missing__", "b", "a", "__ifcfill_missing__", "b"]
+    )
+
+    restored = tf.inverse_transform(generated, missingness_restore="generated")
+
+    assert restored["value"].isna().tolist() == [True, True, True, False, False, False]
+    assert restored["group"].isna().tolist() == [False, True, False, False, True, False]
+    assert list(restored.columns) == ["value", "group"]
+
+
+def test_generated_mode_accepts_float_flags_from_generators():
+    real = pd.DataFrame({"value": [1.5, np.nan, 3.5, 4.5]})
+    tf = IFCTransformer()
+    generated = tf.fit_transform(real)
+    generated["value__ifc_missing"] = [0.9, 0.2, np.nan, 0.5]
+
+    restored = tf.inverse_transform(generated, missingness_restore="generated")
+
+    assert restored["value"].isna().tolist() == [True, False, False, True]
+
+
+@pytest.mark.parametrize("mode", ["generated", "hybrid"])
+def test_flag_reading_modes_require_flag_columns(mode):
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(_mar_frame())
+    with pytest.raises(ValueError, match="y__ifc_missing"):
+        tf.inverse_transform(
+            transformed.drop(columns="y__ifc_missing"), missingness_restore=mode
+        )
+
+
+@pytest.mark.parametrize("n_rows", [1, 77, 400, 1000])
+def test_hybrid_mode_matches_fitted_counts_exactly(n_rows):
+    real = _mar_frame()
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(real)
+
+    restored = tf.inverse_transform(
+        resized_rows(transformed, n_rows), missingness_restore="hybrid", random_state=3
+    )
+
+    expected = int(round(tf.missing_fractions_["y"] * n_rows))
+    assert restored["y"].isna().sum() == expected
+    assert restored["x"].isna().sum() == 0
+
+
+def test_hybrid_mode_preserves_value_dependence_that_marginal_loses():
+    real = _mar_frame()
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(real)
+
+    hybrid = tf.inverse_transform(transformed, missingness_restore="hybrid", random_state=5)
+    marginal = tf.inverse_transform(
+        transformed, missingness_restore="marginal", random_state=5
+    )
+
+    def gap(df: pd.DataFrame) -> float:
+        missing = df["y"].isna()
+        return float(df.loc[missing, "x"].mean() - df.loc[~missing, "x"].mean())
+
+    assert gap(hybrid) > 1.0
+    assert abs(gap(marginal)) < 0.5
+
+
+def test_hybrid_mode_is_reproducible():
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(_mar_frame())
+    first = tf.inverse_transform(transformed, missingness_restore="hybrid", random_state=8)
+    second = tf.inverse_transform(transformed, missingness_restore="hybrid", random_state=8)
+    pd.testing.assert_frame_equal(first, second)
+
+
+def test_hybrid_mode_handles_categorical_and_datetime_columns(sample_df):
+    tf = IFCTransformer(cat_encoding="label")
+    transformed = tf.fit_transform(sample_df)
+
+    restored = tf.inverse_transform(
+        resized_rows(transformed, 40), missingness_restore="hybrid", random_state=1
+    )
+
+    for column in ["age", "salary", "city", "score", "dates"]:
+        expected = int(round(tf.missing_fractions_[column] * 40))
+        assert restored[column].isna().sum() == expected
+
+
+@pytest.mark.parametrize("mode", ["generated", "hybrid"])
+def test_save_load_preserves_generated_and_hybrid_reconstruction(tmp_path, mode):
+    tf = IFCTransformer()
+    transformed = tf.fit_transform(_mar_frame())
+    state_file = tmp_path / "state.json"
+    tf.save(state_file)
+    loaded = IFCTransformer.load(state_file)
+
+    expected = tf.inverse_transform(transformed, missingness_restore=mode, random_state=2)
+    actual = loaded.inverse_transform(transformed, missingness_restore=mode, random_state=2)
+    pd.testing.assert_frame_equal(actual, expected)
+    assert loaded.missing_flag_columns_ == tf.missing_flag_columns_
 
 
 # ---------------------------------------------------------------------------

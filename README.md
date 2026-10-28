@@ -40,7 +40,8 @@ variable.
   - Float: `mean`, `median`, `mode`, `zero`
   - Categorical: `constant` (default), `mode`
 - **Synthesis-safe categorical missingness** — missing categorical values use the internal `__ifcfill_missing__` sentinel during transformation
-- **Marginal or joint reconstruction** — inverse transformation always reconstructs either fitted per-variable missingness or the empirical joint row-pattern distribution
+- **Missingness flags** — binary `<column>__ifc_missing` flags for integer, float, and datetime columns that contain nulls, so generators learn missingness jointly with the data
+- **Four reconstruction modes** — generator-learned (default), hybrid (exact rates placed by a conditional missingness model), marginal, or empirical joint row patterns
 - **Optional categorical label encoding** — fill categorical values first, then encode categories as integer codes through a separate label-encoding layer with inverse mappings
 - **Datetime → integer conversion** — converts date/time columns to integers relative to a configurable anchor date and time unit (days, seconds, ms, …)
 - **Constant column removal** — automatically drops true constant columns while preserving categorical missing categories when they are learnable
@@ -86,10 +87,10 @@ print(transformed)
 # Inspect missing-value distribution captured at fit time
 print(tf.missing_report_)
 
-# Restore original structure and the default marginal missingness distribution.
+# Restore original structure, using the missingness produced by the generator.
 restored = tf.inverse_transform(
     transformed,
-    missingness_restore="marginal",
+    missingness_restore="generated",
     random_state=42,
 )
 print(restored)
@@ -107,15 +108,34 @@ restored_again = loaded_tf.inverse_transform(transformed)
 `inverse_transform()` always reconstructs missingness across every original
 column, including categorical and internally dropped constant columns:
 
-- **IFCFill-Marginal** (`missingness_restore="marginal"`, the default) preserves
+- **IFCFill-Generated** (`missingness_restore="generated"`, the default) keeps
+  the missingness produced by the generator. `transform()` adds a binary
+  `<column>__ifc_missing` flag for each integer, float, or datetime column that
+  had missing values at fit time, and categorical missingness is carried by the
+  sentinel category. The generator therefore learns missingness jointly with
+  the other variables, and the final mask is read from the generated flags and
+  sentinels. Missingness rates follow the generator and are not forced to match
+  the real data exactly.
+- **IFCFill-Hybrid** (`missingness_restore="hybrid"`) assigns exactly
+  `round(fitted_fraction * n)` missing positions per column, like Marginal, but
+  chooses the rows by weighted sampling without replacement from a
+  regularized logistic model of `P(M_j | other values, other indicators)` fitted
+  on the real data and evaluated on the synthetic rows. It preserves exact rates
+  and the dependence of missingness on observed values.
+- **IFCFill-Marginal** (`missingness_restore="marginal"`) preserves
   each fitted per-variable distribution, `P(M_j)`. For `n` synthetic rows it
-  assigns exactly `round(fitted_fraction * n)` missing positions per column.
+  assigns exactly `round(fitted_fraction * n)` missing positions per column,
+  independently of the values.
 - **IFCFill-Joint** (`missingness_restore="joint"`) preserves the fitted
   empirical row-wise pattern distribution, `P(M_1, ..., M_p)`, using
   largest-remainder count allocation followed by a reproducible row shuffle.
 
+Keep the flag columns in the data passed to the generator; the generated and
+hybrid modes require them. Set `missing_flags=False` to omit them, in which
+case use the marginal or joint mode.
+
 The categorical sentinel `__ifcfill_missing__` only makes incomplete training
-data synthesis-ready. It does not control final missingness. IFCFill replaces
+data synthesis-ready. It does not control final missingness on its own. IFCFill replaces
 excess generated sentinels and applies its reconstructed mask as the authority.
 Integers are rounded without clipping and returned as nullable pandas `Int64`;
 floats remain floating-point and missing datetimes use `NaT`.

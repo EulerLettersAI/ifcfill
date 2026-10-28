@@ -133,15 +133,17 @@ print(tf.missing_report_)
 ```python
 restored = tf.inverse_transform(
     transformed,
-    missingness_restore="marginal",  # fitted P(M_j); this is the default
+    missingness_restore="generated",  # missingness produced by the generator; default
     random_state=42,
 )
 print(restored)
 ```
 
-Use `missingness_restore="joint"` to reconstruct the fitted empirical row-wise
-distribution `P(M_1, ..., M_p)` instead. Both modes cover all original column
-types. The categorical synthesis sentinel is internal and does not decide which
+Use `missingness_restore="hybrid"` to match the fitted per-column rates exactly
+while placing missing values where a real-data model of `P(M_j | other values)`
+expects them. `"marginal"` matches the rates independently of the values, and
+`"joint"` reconstructs the fitted empirical row-wise distribution
+`P(M_1, ..., M_p)`. All modes cover all original column types. The categorical synthesis sentinel is internal and does not decide which
 final values are missing.
 
 ---

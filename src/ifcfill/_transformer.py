@@ -10,6 +10,7 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 
+from . import _hybrid
 from ._encoding import LabelCategoryEncoder
 from ._impute import compute_fill_categorical, compute_fill_float, compute_fill_integer
 from ._io import load_to_dataframe
@@ -18,9 +19,11 @@ from ._types import ColType, infer_col_type
 # String sentinels that represent null in object columns after .astype(str)
 _NULL_SENTINELS = frozenset({"nan", "none", "<na>", "nat", "pd.na", ""})
 _CAT_ENCODINGS = ("none", "label")
-_MISSINGNESS_RESTORE_MODES = ("marginal", "joint")
+_MISSINGNESS_RESTORE_MODES = ("generated", "hybrid", "marginal", "joint")
+_FLAGGED_TYPES = ("integer", "float", "datetime")
 DEFAULT_CAT_CONSTANT = "__ifcfill_missing__"
-_STATE_VERSION = 2
+MISSING_FLAG_SUFFIX = "__ifc_missing"
+_STATE_VERSION = 3
 
 # Multiplier to convert total_seconds() to each supported datetime unit
 _SECONDS_PER_UNIT: dict[str, float] = {
@@ -91,6 +94,13 @@ class IFCTransformer:
         categorical values first, then maps each completed category to an
         integer code through a separate encoder layer and stores mappings for
         :meth:`inverse_transform`.
+    missing_flags:
+        If ``True`` (default), :meth:`transform` adds a binary
+        ``<column>__ifc_missing`` flag for every integer, float, or datetime
+        column that contains missing values at ``fit`` time, so a
+        synthetic-data generator can learn missingness jointly with the other
+        variables. Categorical missingness is carried by the sentinel category
+        instead. Flags are required by ``missingness_restore="generated"``.
     n_jobs:
         Number of worker threads to use for per-column ``fit`` and
         ``transform`` work. ``None`` or ``1`` runs sequentially. Negative values
@@ -123,6 +133,13 @@ class IFCTransformer:
     categorical_distributions_ : dict[str, dict[str, float]]
         Observed real-data distributions used when categorical sentinel values
         cannot be replaced from synthetic values.
+    missing_flag_columns_ : dict[str, str]
+        ``{original_column: flag_column}`` for every flagged column.
+    hybrid_feature_spec_ : list[dict]
+        Design-matrix description shared by the hybrid missingness models.
+    hybrid_models_ : dict[str, dict]
+        Per-column logistic models of :math:`P(M_j \\mid X_{-j}, M_{-j})`
+        fitted on the real data and used by ``missingness_restore="hybrid"``.
     category_mappings_ : dict[str, dict[str, int]]
         Forward mapping for label-encoded categorical columns.
     inverse_category_mappings_ : dict[str, dict[int, str]]
@@ -133,7 +150,7 @@ class IFCTransformer:
     >>> tf = IFCTransformer()
     >>> transformed = tf.fit_transform("data.csv")
     >>> restored = tf.inverse_transform(
-    ...     transformed, missingness_restore="joint", random_state=42
+    ...     transformed, missingness_restore="hybrid", random_state=42
     ... )
     """
 
@@ -145,6 +162,7 @@ class IFCTransformer:
         cat_fill: Literal["mode", "constant"] = "constant",
         cat_constant: str = DEFAULT_CAT_CONSTANT,
         cat_encoding: Literal["none", "label"] = "none",
+        missing_flags: bool = True,
         n_jobs: int | None = 1,
         datetime_anchor: str | pd.Timestamp = "1970-01-01",
         datetime_unit: Literal["D", "s", "ms", "us", "ns"] = "D",
@@ -165,6 +183,7 @@ class IFCTransformer:
         self.cat_fill = cat_fill
         self.cat_constant = cat_constant
         self.cat_encoding = cat_encoding
+        self.missing_flags = bool(missing_flags)
         self.n_jobs = n_jobs
         self._effective_n_jobs()
         self.datetime_anchor = pd.Timestamp(datetime_anchor)
@@ -180,6 +199,9 @@ class IFCTransformer:
         self.missing_fractions_: dict[str, float] = {}
         self.missing_pattern_distribution_: dict[tuple[int, ...], float] = {}
         self.categorical_distributions_: dict[str, dict[str, float]] = {}
+        self.missing_flag_columns_: dict[str, str] = {}
+        self.hybrid_feature_spec_: list[dict[str, Any]] = []
+        self.hybrid_models_: dict[str, dict[str, Any]] = {}
         self._category_encoder = LabelCategoryEncoder()
         self.category_mappings_ = self._category_encoder.category_mappings_
         self.inverse_category_mappings_ = self._category_encoder.inverse_category_mappings_
@@ -317,6 +339,8 @@ class IFCTransformer:
                     code: value for value, code in category_mapping.items()
                 }
 
+        self.missing_flag_columns_ = self._fit_missing_flag_columns(n)
+        self._fit_hybrid_models(df)
         self._is_fitted = True
         return self
 
@@ -332,7 +356,9 @@ class IFCTransformer:
         Returns
         -------
         pandas.DataFrame
-            Transformed data without constant columns and without missing values.
+            Transformed data without constant columns and without missing
+            values. Each missingness flag follows its source column, or takes
+            its position when the source column is a dropped constant.
 
         Raises
         ------
@@ -356,6 +382,11 @@ class IFCTransformer:
         for col, transformed in self._map_columns(self._transform_column, tasks):
             if transformed is not None:
                 result[col] = transformed
+            flag = self.missing_flag_columns_.get(col)
+            if flag is not None:
+                result[flag] = pd.Series(
+                    df[col].isna().to_numpy(dtype=np.int64), index=df.index, name=flag
+                )
 
         return pd.DataFrame(result, index=df.index)
 
@@ -366,16 +397,24 @@ class IFCTransformer:
     def inverse_transform(
         self,
         data: str | Path | pd.DataFrame,
-        missingness_restore: Literal["marginal", "joint"] = "marginal",
+        missingness_restore: Literal[
+            "generated", "hybrid", "marginal", "joint"
+        ] = "generated",
         random_state: int | np.random.Generator | None = None,
     ) -> pd.DataFrame:
         """Restore semantic types, structure, and missingness.
 
-        Missingness reconstruction always occurs. ``"marginal"`` preserves
-        each fitted per-column distribution :math:`P(M_j)`, while ``"joint"``
-        preserves the empirical row-pattern distribution
-        :math:`P(M_1, \\ldots, M_p)`. Categorical synthesis sentinels are an
-        internal representation only; the reconstructed mask is authoritative.
+        Missingness reconstruction always occurs. ``"generated"`` keeps the
+        missingness produced by the synthetic-data generator through flags and
+        categorical sentinels, preserving its learned dependence on the other
+        variables. ``"hybrid"`` matches each fitted per-column rate
+        :math:`P(M_j)` exactly while placing missing values on the synthetic
+        rows that a real-data model of :math:`P(M_j \\mid X_{-j}, M_{-j})`
+        scores as most likely to be missing. ``"marginal"`` preserves each
+        :math:`P(M_j)` independently of the values, and ``"joint"`` preserves
+        the empirical row-pattern distribution :math:`P(M_1, \\ldots, M_p)`.
+        Categorical synthesis sentinels and missingness flags are an internal
+        representation only; the reconstructed mask is authoritative.
 
         Integer columns are rounded to the nearest integer and returned with
         pandas nullable ``Int64`` dtype. Datetime columns use ``NaT`` for
@@ -386,10 +425,17 @@ class IFCTransformer:
         data:
             A DataFrame produced by :meth:`transform` (or a CSV of one).
         missingness_restore:
-            ``"marginal"`` (default) allocates exactly
-            ``round(fitted_fraction * n_rows)`` missing values independently in
-            every original column. ``"joint"`` uses largest-remainder allocation
-            of the fitted empirical row-wise missingness patterns.
+            ``"generated"`` (default) sets a value missing wherever the
+            generator produced a positive flag, a categorical sentinel, or a
+            null. Columns whose missingness has no generated indicator (for
+            example categorical columns filled with ``cat_fill="mode"``) fall
+            back to marginal allocation. ``"hybrid"`` allocates exactly
+            ``round(fitted_fraction * n_rows)`` missing values per column by
+            weighted sampling without replacement, using the fitted
+            conditional missingness models evaluated on the synthetic rows.
+            ``"marginal"`` allocates the same counts uniformly at random.
+            ``"joint"`` uses largest-remainder allocation of the fitted
+            empirical row-wise missingness patterns.
         random_state:
             Integer seed or :class:`numpy.random.Generator` for reproducible
             mask assignment and categorical sentinel replacement.
@@ -397,12 +443,14 @@ class IFCTransformer:
         Returns
         -------
         pandas.DataFrame
-            Reconstructed data in the fitted column order.
+            Reconstructed data in the fitted column order, without flags.
 
         Raises
         ------
         ValueError
-            If *missingness_restore* is not ``"marginal"`` or ``"joint"``.
+            If *missingness_restore* is unknown, or if a mode that reads
+            generated flags (``"generated"`` or ``"hybrid"``) receives data
+            without the fitted flag columns.
         """
         self._check_fitted()
         if missingness_restore not in _MISSINGNESS_RESTORE_MODES:
@@ -413,6 +461,20 @@ class IFCTransformer:
 
         result = load_to_dataframe(data).copy()
         rng = np.random.default_rng(random_state)
+
+        if missingness_restore in ("generated", "hybrid"):
+            absent = [
+                flag
+                for flag in self.missing_flag_columns_.values()
+                if flag not in result.columns
+            ]
+            if absent:
+                raise ValueError(
+                    f"missingness_restore={missingness_restore!r} requires the "
+                    f"missingness flag columns produced by transform(); missing: "
+                    f"{absent}. Keep the flags during synthesis or use "
+                    "'marginal' or 'joint'."
+                )
 
         # 1-2. Re-add columns removed before synthesis.
         for col, (value, _) in self.dropped_constants_.items():
@@ -426,6 +488,22 @@ class IFCTransformer:
                         col,
                         result[col],
                     )
+
+        # Read generated missingness before nulls are neutralized and datetime
+        # offsets are converted; hybrid features use the same representation
+        # as the real data at fit time.
+        generated_indicators = self._generated_indicators(result)
+        if missingness_restore == "generated":
+            missing_mask = self._build_missingness_mask(len(result), "marginal", rng)
+            for column_index, column in enumerate(self.original_columns_):
+                if column in generated_indicators:
+                    missing_mask[:, column_index] = generated_indicators[column]
+        elif missingness_restore == "hybrid":
+            missing_mask = self._build_hybrid_mask(result, generated_indicators, rng)
+        else:
+            missing_mask = self._build_missingness_mask(
+                len(result), missingness_restore, rng
+            )
 
         # 4. Convert synthesized datetime offsets back to timestamps. Dropped
         # datetime constants were reinserted in their original representation.
@@ -450,10 +528,7 @@ class IFCTransformer:
         # numeric nulls so only IFCFill's final mask controls missingness.
         self._restore_semantic_types(result)
 
-        # 6. Construct one authoritative mask over every original column.
-        missing_mask = self._build_missingness_mask(
-            len(result), missingness_restore, rng
-        )
+        # 6. The authoritative mask over every original column was built above.
 
         # 7. Replace categorical sentinels/nulls wherever the final mask says
         # the value must be observed.
@@ -462,7 +537,7 @@ class IFCTransformer:
         # 8. Apply type-appropriate missing values.
         self._apply_missingness_mask(result, missing_mask)
 
-        # 9. Restore fitted column order (and discard unexpected columns).
+        # 9. Restore fitted column order (and discard flags and unexpected columns).
         available = [col for col in self.original_columns_ if col in result.columns]
         result = result[available]
 
@@ -541,6 +616,189 @@ class IFCTransformer:
         pattern_array = np.asarray(patterns, dtype=bool)
         allocated = np.repeat(pattern_array, allocated_counts, axis=0)
         return allocated[rng.permutation(n_rows)]
+
+    def _fit_missing_flag_columns(self, n_rows: int) -> dict[str, str]:
+        """Name a flag for every numeric/datetime column that is partly missing."""
+        if not self.missing_flags:
+            return {}
+
+        taken = set(self.original_columns_)
+        flags: dict[str, str] = {}
+        for column in self.original_columns_:
+            if self.original_column_types_.get(column) not in _FLAGGED_TYPES:
+                continue
+            if not 0 < self.missing_counts_.get(column, 0) < n_rows:
+                continue
+            name = f"{column}{MISSING_FLAG_SUFFIX}"
+            while name in taken:
+                name += "_"
+            taken.add(name)
+            flags[column] = name
+        return flags
+
+    def _sentinel(self, column: str) -> str | None:
+        if (
+            self.original_column_types_.get(column) == "categorical"
+            and self.cat_fill == "constant"
+            and column in self.fill_values_
+        ):
+            return str(self.fill_values_[column])
+        return None
+
+    def _indicator_columns(self) -> list[str]:
+        """Original columns whose missingness is observable in generated data."""
+        return [
+            column
+            for column in self.original_columns_
+            if column in self.missing_flag_columns_
+            or (
+                self._sentinel(column) is not None
+                and self.missing_counts_.get(column, 0) > 0
+            )
+        ]
+
+    def _generated_indicators(self, result: pd.DataFrame) -> dict[str, np.ndarray]:
+        """Read generated missingness from flags, sentinels, and generated nulls.
+
+        Must run after label decoding and before nulls are neutralized.
+        """
+        indicators: dict[str, np.ndarray] = {}
+        for column in self._indicator_columns():
+            flag = self.missing_flag_columns_.get(column)
+            if flag is not None:
+                if flag not in result.columns:
+                    continue
+                flagged = pd.to_numeric(result[flag], errors="coerce").to_numpy(dtype=float)
+                indicator = np.nan_to_num(flagged, nan=0.0) >= 0.5
+                if column in result.columns:
+                    indicator |= result[column].isna().to_numpy()
+            else:
+                series = result[column].astype(object)
+                indicator = (
+                    series.isna().to_numpy()
+                    | series.astype(str).eq(self._sentinel(column)).to_numpy()
+                )
+            indicators[column] = indicator
+        return indicators
+
+    def _completed_values(self, df: pd.DataFrame) -> dict[str, pd.Series]:
+        """Filled real values in the representation the hybrid models use."""
+        values: dict[str, pd.Series] = {}
+        for column, column_type in self.column_types_.items():
+            if column_type == "categorical":
+                values[column] = self._filled_categorical(
+                    df[column], self.fill_values_[column]
+                )
+            else:
+                values[column] = self._transform_column((column, df[column], df.index))[1]
+        return values
+
+    def _fit_hybrid_models(self, df: pd.DataFrame) -> None:
+        """Fit P(M_j | other values, other indicators) for each partly missing column."""
+        self.hybrid_feature_spec_ = []
+        self.hybrid_models_ = {}
+        n_rows = len(df)
+        targets = [
+            column
+            for column in self.original_columns_
+            if 0 < self.missing_counts_.get(column, 0) < n_rows
+        ]
+        if not targets:
+            return
+
+        if n_rows > _hybrid.HYBRID_MAX_FIT_ROWS:
+            rows = np.sort(
+                np.random.default_rng(0).choice(
+                    n_rows, size=_hybrid.HYBRID_MAX_FIT_ROWS, replace=False
+                )
+            )
+            df = df.iloc[rows]
+            n_rows = len(df)
+
+        values = self._completed_values(df)
+        indicators = {
+            column: df[column].isna().to_numpy() for column in self._indicator_columns()
+        }
+        sentinels = {column: self._sentinel(column) for column in self.column_types_}
+        self.hybrid_feature_spec_ = _hybrid.build_feature_spec(
+            values, self.column_types_, indicators, sentinels
+        )
+        matrix = _hybrid.design_matrix(
+            self.hybrid_feature_spec_, values, indicators, n_rows
+        )
+
+        for column in targets:
+            y = df[column].isna().to_numpy(dtype=float)
+            feature_indices = [
+                index
+                for index, feature in enumerate(self.hybrid_feature_spec_)
+                if feature["column"] != column
+            ]
+            intercept, coefficients = _hybrid.fit_logistic(matrix[:, feature_indices], y)
+            self.hybrid_models_[column] = {
+                "feature_indices": feature_indices,
+                "intercept": intercept,
+                "coefficients": coefficients.tolist(),
+            }
+
+    def _build_hybrid_mask(
+        self,
+        result: pd.DataFrame,
+        generated_indicators: dict[str, np.ndarray],
+        rng: np.random.Generator,
+    ) -> np.ndarray:
+        """Allocate fitted per-column counts guided by the conditional models."""
+        n_rows = len(result)
+        mask = self._build_missingness_mask(n_rows, "marginal", rng)
+        if n_rows == 0 or not self.hybrid_models_:
+            return mask
+
+        values: dict[str, pd.Series] = {}
+        for column, column_type in self.column_types_.items():
+            if column not in result.columns:
+                continue
+            if column_type == "categorical":
+                values[column] = result[column].astype(object).astype(str)
+            else:
+                values[column] = pd.to_numeric(result[column], errors="coerce").fillna(
+                    float(self.fill_values_[column])
+                )
+        indicators = {
+            column: generated_indicators.get(column, np.zeros(n_rows, dtype=bool))
+            for column in self._indicator_columns()
+        }
+        spec = self.hybrid_feature_spec_
+        missing_inputs = sorted(
+            {
+                feature["column"]
+                for feature in spec
+                if feature["kind"] != "missing" and feature["column"] not in values
+            }
+        )
+        if missing_inputs:
+            raise ValueError(
+                f"Synthetic data is missing columns required by the hybrid "
+                f"missingness models: {missing_inputs}."
+            )
+        matrix = _hybrid.design_matrix(spec, values, indicators, n_rows)
+
+        for column_index, column in enumerate(self.original_columns_):
+            model = self.hybrid_models_.get(column)
+            if model is None:
+                continue
+            fraction = self.missing_fractions_.get(column, 0.0)
+            n_missing = min(max(int(round(fraction * n_rows)), 0), n_rows)
+            probabilities = _hybrid.predict_proba(
+                matrix[:, model["feature_indices"]],
+                model["intercept"],
+                np.asarray(model["coefficients"], dtype=float),
+            )
+            rows = _hybrid.weighted_sample_without_replacement(
+                probabilities, n_missing, rng
+            )
+            mask[:, column_index] = False
+            mask[rows, column_index] = True
+        return mask
 
     def _restore_semantic_types(self, result: pd.DataFrame) -> None:
         """Restore numeric dtypes and remove generator-created numeric nulls."""
@@ -799,6 +1057,9 @@ class IFCTransformer:
             return False
         if not all(col in df.columns for col in self.column_types_):
             return False
+        for flag in self.missing_flag_columns_.values():
+            if flag not in df.columns or not pd.api.types.is_integer_dtype(df[flag]):
+                return False
 
         for col, col_type in self.column_types_.items():
             series = df[col]
@@ -852,6 +1113,7 @@ class IFCTransformer:
                 "cat_fill": self.cat_fill,
                 "cat_constant": self.cat_constant,
                 "cat_encoding": self.cat_encoding,
+                "missing_flags": self.missing_flags,
                 "n_jobs": self.n_jobs,
                 "datetime_anchor": self.datetime_anchor.isoformat(),
                 "datetime_unit": self.datetime_unit,
@@ -882,6 +1144,9 @@ class IFCTransformer:
                 ],
                 "categorical_distributions": self.categorical_distributions_,
                 "category_mappings": self.category_mappings_,
+                "missing_flag_columns": self.missing_flag_columns_,
+                "hybrid_feature_spec": self.hybrid_feature_spec_,
+                "hybrid_models": self.hybrid_models_,
             },
         }
 
@@ -895,6 +1160,7 @@ class IFCTransformer:
             cat_fill=params["cat_fill"],
             cat_constant=params["cat_constant"],
             cat_encoding=params["cat_encoding"],
+            missing_flags=params["missing_flags"],
             n_jobs=params.get("n_jobs", 1),
             datetime_anchor=params["datetime_anchor"],
             datetime_unit=params["datetime_unit"],
@@ -935,6 +1201,9 @@ class IFCTransformer:
             }
             for col, distribution in fitted["categorical_distributions"].items()
         }
+        transformer.missing_flag_columns_ = dict(fitted["missing_flag_columns"])
+        transformer.hybrid_feature_spec_ = list(fitted["hybrid_feature_spec"])
+        transformer.hybrid_models_ = dict(fitted["hybrid_models"])
 
         transformer._category_encoder.reset()
         transformer._category_encoder.category_mappings_ = {

@@ -304,17 +304,44 @@ always reconstructs missingness:
 1. **Re-inserts** dropped constant columns with their original values
 2. **Decodes** label-encoded categorical integer codes when `cat_encoding="label"`
 3. **Restores** datetime and semantic numeric types (`Int64` for integers)
-4. **Builds** a marginal or joint missingness mask over every original column
+4. **Builds** a generated, hybrid, marginal, or joint missingness mask over every original column
 5. **Resolves** categorical sentinels wherever the final mask requires an observed value
 6. **Applies** type-appropriate missing values and restores original column order
 
 ```python
 restored = tf.inverse_transform(
     transformed_df,
-    missingness_restore="marginal",  # default
+    missingness_restore="generated",  # default
     random_state=0,
 )
 ```
+
+### IFCFill-Generated
+
+`missingness_restore="generated"` (the default) keeps the missingness produced
+by the synthetic-data generator. With `missing_flags=True` (the default),
+`transform()` adds a binary `<column>__ifc_missing` flag for every integer,
+float, or datetime column that had missing values at fit time; categorical
+missingness is carried by the sentinel category. Because flags and sentinels
+are synthesized together with the other variables, the generator can learn how
+missingness depends on them. A value is reconstructed as missing wherever the
+generator produced a flag of at least 0.5, a sentinel, or a null. Columns whose
+missingness has no generated indicator, such as categorical columns filled with
+`cat_fill="mode"`, fall back to marginal allocation.
+
+Missingness rates in this mode follow the generator, so they can differ from the
+real data; measure them with your usual marginal and joint missingness metrics.
+
+### IFCFill-Hybrid
+
+`missingness_restore="hybrid"` combines exact rates with value dependence. At
+fit time IFCFill trains, for every partly missing column, an L2-regularized
+logistic model of `P(M_j | X_-j, M_-j)` on the real data. Inputs are the other
+completed values (standardized numeric and datetime values, one-hot encodings of
+up to 20 frequent categories) and the other columns' missingness indicators.
+During reconstruction the model scores every synthetic row, and exactly
+`round(missing_fraction * n)` rows are selected by weighted sampling without
+replacement. Fitting uses at most 50,000 rows.
 
 ### IFCFill-Marginal
 

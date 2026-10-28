@@ -7,6 +7,32 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.5.0] — 2026-10-28
+
+### Breaking changes
+
+- `transform()` now adds a binary `<column>__ifc_missing` flag after every
+  integer, float, or datetime column that contains missing values at fit time.
+  Disable with `IFCTransformer(missing_flags=False)`.
+- `inverse_transform()` defaults to `missingness_restore="generated"` instead
+  of `"marginal"`.
+- Advanced the saved transformer state format to version 3. Version 2 state
+  files fail with an explicit unsupported-version error and must be refitted.
+
+### Added
+
+- **IFCFill-Generated** (`missingness_restore="generated"`), which keeps the
+  missingness produced by the generator through flags and categorical
+  sentinels, preserving its learned dependence on the other variables.
+- **IFCFill-Hybrid** (`missingness_restore="hybrid"`), which matches fitted
+  per-column missingness rates exactly and places missing values by weighted
+  sampling without replacement from L2-regularized logistic models of
+  `P(M_j | X_-j, M_-j)` fitted on the real data.
+- `missing_flag_columns_`, `hybrid_feature_spec_`, and `hybrid_models_`
+  fitted attributes, persisted by `save()` / `load()`.
+
+---
+
 ## [0.4.0] — 2026-10-08
 
 ### Breaking changes
