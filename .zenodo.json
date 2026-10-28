@@ -1,0 +1,33 @@
+{
+  "title": "IFCFill: missingness-aware preprocessing for synthetic data generation",
+  "upload_type": "software",
+  "description": "IFCFill transforms incomplete tabular data into Integer, Float and Categorical (IFC) variables that synthetic-data generators can consume, and reconstructs the original representation and missingness after synthesis. Missingness can be restored as produced by the generator, with exact per-variable rates placed by a conditional missingness model (hybrid), or by matching the marginal or joint missingness distribution of the real data.",
+  "creators": [
+    {
+      "name": "El Kababji, Samer",
+      "affiliation": "Department of Data Science, Princess Sumaya University for Technology, Amman, Jordan",
+      "orcid": "0000-0002-7642-2280"
+    }
+  ],
+  "license": "Apache-2.0",
+  "keywords": [
+    "missing data",
+    "synthetic data",
+    "tabular data",
+    "preprocessing",
+    "imputation",
+    "missingness"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://eulerlettersai.github.io/ifcfill",
+      "relation": "isDocumentedBy",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://pypi.org/project/ifcfill/",
+      "relation": "isIdenticalTo",
+      "scheme": "url"
+    }
+  ]
+}

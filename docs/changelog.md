@@ -7,6 +7,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.5.1] — 2026-10-28
+
+### Added
+
+- `CITATION.cff` and `.zenodo.json` citation metadata for GitHub and Zenodo
+  archiving.
+
+### Changed
+
+- Corrected the package author name to Samer El Kababji.
+
+No code changes.
+
+---
+
 ## [0.5.0] — 2026-10-28
 
 ### Breaking changes

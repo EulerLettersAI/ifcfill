@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ifcfill"
-version = "0.5.0"
+version = "0.5.1"
 description = "Transformer of tabular data into Integer, Float and Categorical (IFC) variables with missing data imputation."
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [
-    { name = "Samer Elkababji", email = "skababji@gmail.com" },
+    { name = "Samer El Kababji", email = "skababji@gmail.com" },
 ]
 keywords = ["tabular", "imputation", "missing data", "categorical", "preprocessing", "machine learning"]
 classifiers = [
