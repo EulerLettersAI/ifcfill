@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -706,6 +706,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#ifcfill-generated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IFCFill-Generated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ifcfill-hybrid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IFCFill-Hybrid
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#ifcfill-marginal" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -997,6 +1019,28 @@
   
     <nav class="md-nav" aria-label="Inverse transform">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ifcfill-generated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IFCFill-Generated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ifcfill-hybrid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IFCFill-Hybrid
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#ifcfill-marginal" class="md-nav__link">
@@ -1355,16 +1399,38 @@ always reconstructs missingness:</p>
 <li><strong>Re-inserts</strong> dropped constant columns with their original values</li>
 <li><strong>Decodes</strong> label-encoded categorical integer codes when <code>cat_encoding="label"</code></li>
 <li><strong>Restores</strong> datetime and semantic numeric types (<code>Int64</code> for integers)</li>
-<li><strong>Builds</strong> a marginal or joint missingness mask over every original column</li>
+<li><strong>Builds</strong> a generated, hybrid, marginal, or joint missingness mask over every original column</li>
 <li><strong>Resolves</strong> categorical sentinels wherever the final mask requires an observed value</li>
 <li><strong>Applies</strong> type-appropriate missing values and restores original column order</li>
 </ol>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">restored</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">inverse_transform</span><span class="p">(</span>
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    <span class="n">transformed_df</span><span class="p">,</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="n">missingness_restore</span><span class="o">=</span><span class="s2">"marginal"</span><span class="p">,</span>  <span class="c1"># default</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="n">missingness_restore</span><span class="o">=</span><span class="s2">"generated"</span><span class="p">,</span>  <span class="c1"># default</span>
 <a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
 <a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="p">)</span>
 </code></pre></div>
+<h3 id="ifcfill-generated">IFCFill-Generated<a class="headerlink" href="#ifcfill-generated" title="Permanent link">&para;</a></h3>
+<p><code>missingness_restore="generated"</code> (the default) keeps the missingness produced
+by the synthetic-data generator. With <code>missing_flags=True</code> (the default),
+<code>transform()</code> adds a binary <code>&lt;column&gt;__ifc_missing</code> flag for every integer,
+float, or datetime column that had missing values at fit time; categorical
+missingness is carried by the sentinel category. Because flags and sentinels
+are synthesized together with the other variables, the generator can learn how
+missingness depends on them. A value is reconstructed as missing wherever the
+generator produced a flag of at least 0.5, a sentinel, or a null. Columns whose
+missingness has no generated indicator, such as categorical columns filled with
+<code>cat_fill="mode"</code>, fall back to marginal allocation.</p>
+<p>Missingness rates in this mode follow the generator, so they can differ from the
+real data; measure them with your usual marginal and joint missingness metrics.</p>
+<h3 id="ifcfill-hybrid">IFCFill-Hybrid<a class="headerlink" href="#ifcfill-hybrid" title="Permanent link">&para;</a></h3>
+<p><code>missingness_restore="hybrid"</code> combines exact rates with value dependence. At
+fit time IFCFill trains, for every partly missing column, an L2-regularized
+logistic model of <code>P(M_j | X_-j, M_-j)</code> on the real data. Inputs are the other
+completed values (standardized numeric and datetime values, one-hot encodings of
+up to 20 frequent categories) and the other columns' missingness indicators.
+During reconstruction the model scores every synthetic row, and exactly
+<code>round(missing_fraction * n)</code> rows are selected by weighted sampling without
+replacement. Fitting uses at most 50,000 rows.</p>
 <h3 id="ifcfill-marginal">IFCFill-Marginal<a class="headerlink" href="#ifcfill-marginal" title="Permanent link">&para;</a></h3>
 <p><code>missingness_restore="marginal"</code> preserves the fitted per-variable missingness
 distribution <code>P(M_j)</code>. For <code>n</code> reconstructed rows, each original column receives
@@ -1444,10 +1510,10 @@ the required missing positions.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>
