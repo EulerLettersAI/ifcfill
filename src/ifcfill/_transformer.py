@@ -54,8 +54,12 @@ def _numeric_to_datetime(
     anchor: pd.Timestamp,
     unit: str,
 ) -> pd.Series:
-    """Convert numeric datetime offsets back to timestamps."""
-    numeric = pd.to_numeric(series, errors="coerce")
+    """Convert numeric datetime offsets back to timestamps.
+
+    Offsets are rounded to whole *unit* steps, the resolution at which
+    :meth:`IFCTransformer.transform` encodes datetimes as integers.
+    """
+    numeric = pd.to_numeric(series, errors="coerce").round()
     return anchor + pd.to_timedelta(numeric, unit=unit)
 
 
@@ -417,8 +421,9 @@ class IFCTransformer:
         representation only; the reconstructed mask is authoritative.
 
         Integer columns are rounded to the nearest integer and returned with
-        pandas nullable ``Int64`` dtype. Datetime columns use ``NaT`` for
-        reconstructed missing values.
+        pandas nullable ``Int64`` dtype. Datetime columns are rounded to whole
+        ``datetime_unit`` steps and use ``NaT`` for reconstructed missing
+        values.
 
         Parameters
         ----------

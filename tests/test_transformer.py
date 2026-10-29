@@ -385,6 +385,24 @@ def test_inverse_datetime_restores_seconds_unit():
     pd.testing.assert_series_equal(restored["event_at"], df["event_at"])
 
 
+def test_inverse_datetime_rounds_synthetic_offsets_to_unit():
+    df = pd.DataFrame(
+        {
+            "visit": pd.to_datetime(["2024-01-01", "2024-01-03"]),
+            "value": [1, 2],
+        }
+    )
+    tf = IFCTransformer(datetime_anchor="2024-01-01")
+    transformed = tf.fit_transform(df)
+    # A generator returns fractional day offsets for the integer-encoded dates.
+    transformed["visit"] = [0.4, 1.6]
+
+    restored = tf.inverse_transform(transformed)
+
+    expected = pd.Series(pd.to_datetime(["2024-01-01", "2024-01-03"]), name="visit")
+    pd.testing.assert_series_equal(restored["visit"], expected)
+
+
 def test_inverse_datetime_restore_missing_uses_nat(sample_df):
     tf = IFCTransformer()
     transformed = tf.fit_transform(sample_df)

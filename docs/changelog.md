@@ -7,6 +7,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.5.2] — 2026-10-29
+
+### Fixed
+
+- `inverse_transform()` now rounds synthesized datetime offsets to whole
+  `datetime_unit` steps, the resolution at which `transform()` encodes dates.
+  Previously a generator's fractional offsets produced timestamps with
+  spurious sub-unit times, such as a time of day for day-level dates.
+
+---
+
 ## [0.5.1] — 2026-10-28
 
 ### Added

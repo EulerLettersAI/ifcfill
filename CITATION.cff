@@ -13,8 +13,8 @@ authors:
     orcid: "https://orcid.org/0000-0002-7642-2280"
     affiliation: "Department of Data Science, Princess Sumaya University for Technology, Amman, Jordan"
     website: "https://eulerlettersai.github.io/"
-version: 0.5.1
-date-released: "2026-10-28"
+version: 0.5.2
+date-released: "2026-10-29"
 license: Apache-2.0
 repository-code: "https://github.com/EulerLettersAI/ifcfill"
 url: "https://eulerlettersai.github.io/ifcfill"
