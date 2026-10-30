@@ -367,6 +367,66 @@ restored_joint = tf.inverse_transform(
 )
 ```
 
+#### Example
+
+Suppose the real data contain 10 patients with three variables:
+
+| Patient | Age | Income | BP  |
+|--------:|----:|-------:|----:|
+| 1       | 25  | 800    | 120 |
+| 2       | 30  | 1,000  | 125 |
+| 3       | 35  | —      | 130 |
+| 4       | 40  | —      | —   |
+| 5       | 45  | 1,500  | —   |
+| 6       | 50  | —      | —   |
+| 7       | 55  | 2,000  | 135 |
+| 8       | 60  | —      | —   |
+| 9       | 65  | 2,500  | 140 |
+| 10      | 70  | 3,000  | 145 |
+
+Each row's missingness pattern lists, for Age, Income, and BP in turn, 0 for an
+observed value and 1 for a missing value. Only four distinct patterns occur. At
+fit time IFCFill stores the frequency of each one: the number of rows with that
+pattern divided by the number of real rows.
+
+| Pattern     | Meaning               | Rows           | Frequency |
+|-------------|-----------------------|----------------|----------:|
+| `(0, 0, 0)` | Fully observed        | 1, 2, 7, 9, 10 | 0.5       |
+| `(0, 1, 0)` | Income missing        | 3              | 0.1       |
+| `(0, 1, 1)` | Income and BP missing | 4, 6, 8        | 0.3       |
+| `(0, 0, 1)` | BP missing            | 5              | 0.1       |
+
+During reconstruction, IFCFill multiplies each frequency by the number of
+synthetic rows. For 20 synthetic rows the counts are whole numbers: 10, 2, 6,
+and 2. Exactly six synthetic patients therefore have both Income and BP missing.
+The 20 patterns are then shuffled across the rows using `random_state`. The
+generated values of Age, Income, and BP play no part in deciding which row
+receives which pattern.
+
+When the counts are not whole numbers, largest-remainder allocation makes them
+sum to the synthetic sample size. For 13 synthetic rows:
+
+| Pattern     | Exact count | Whole part | Remainder | Allocated |
+|-------------|------------:|-----------:|----------:|----------:|
+| `(0, 0, 0)` | 6.5         | 6          | 0.5       | **7**     |
+| `(0, 1, 0)` | 1.3         | 1          | 0.3       | 1         |
+| `(0, 1, 1)` | 3.9         | 3          | 0.9       | **4**     |
+| `(0, 0, 1)` | 1.3         | 1          | 0.3       | 1         |
+| **Total**   | 13.0        | 11         |           | 13        |
+
+The whole parts sum to 11, so the two remaining rows go to the patterns with the
+largest remainders, 0.9 and 0.5. Ties between equal remainders are broken in a
+fixed order, so the allocation is deterministic.
+
+The difference from IFCFill-Marginal shows in how often values are missing
+together. Income and BP are each missing in 4 of the 10 real rows, and both are
+missing in 3. For 20 synthetic rows, both modes give Income and BP exactly 8
+missing values each. Joint mode also reproduces the co-missingness: exactly 6
+rows have both missing. Marginal mode places each column's missing values
+independently, so the number of rows with both missing varies with
+`random_state` and is usually lower, between 1 and 5 for seeds 0–9 in this
+example.
+
 The `__ifcfill_missing__` categorical sentinel exists only to make incomplete
 categorical data synthesis-ready. It never determines final missingness. If a
 generator emits excess sentinels, IFCFill replaces them from valid generated
