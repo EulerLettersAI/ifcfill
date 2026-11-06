@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ifcfill"
-version = "0.5.2"
+version = "0.6.0"
 description = "Transformer of tabular data into Integer, Float and Categorical (IFC) variables with missing data imputation."
 readme = "README.md"
 license = "Apache-2.0"
@@ -33,11 +33,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+select = [
+    "scikit-learn>=1.2",
+]
 examples = [
     "notebook>=7.0",
 ]
 dev = [
     "pytest>=7.0",
+    "scikit-learn>=1.2",
     "pytest-cov>=4.0",
     "build>=1.0",
     "twine>=4.0",

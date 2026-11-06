@@ -1,7 +1,7 @@
 {
   "title": "IFCFill: missingness-aware preprocessing for synthetic data generation",
   "upload_type": "software",
-  "description": "IFCFill transforms incomplete tabular data into Integer, Float and Categorical (IFC) variables that synthetic-data generators can consume, and reconstructs the original representation and missingness after synthesis. Missingness can be restored as produced by the generator, with exact per-variable rates placed by a conditional missingness model (hybrid), or by matching the marginal or joint missingness distribution of the real data.",
+  "description": "IFCFill transforms incomplete tabular data into Integer, Float and Categorical (IFC) variables that synthetic-data generators can consume, and reconstructs the original representation and missingness after synthesis. Missingness can be restored as produced by the generator, with exact per-variable rates placed by a conditional missingness model (hybrid), or by matching the marginal or joint missingness distribution of the real data. An optional rule selects the reconstruction mode from the observed data alone, using a missingness dependence gap.",
   "creators": [
     {
       "name": "El Kababji, Samer",

@@ -14,6 +14,12 @@ Install from PyPI:
 pip install ifcfill
 ```
 
+To use `select_mode()`, which chooses the reconstruction mode from the observed data, install the optional `select` extra (adds scikit-learn):
+
+```bash
+pip install "ifcfill[select]"
+```
+
 To install the optional notebook dependencies for the examples:
 
 ```bash

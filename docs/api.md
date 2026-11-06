@@ -16,3 +16,15 @@
         - get_category_mappings
         - get_category_mapping
         - missing_report_
+
+## select_mode
+
+Requires the optional `select` extra: `pip install "ifcfill[select]"`.
+
+::: ifcfill.select_mode
+
+::: ifcfill.ModeSelection
+
+## missingness_dependence_gap
+
+::: ifcfill.missingness_dependence_gap

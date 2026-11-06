@@ -23,6 +23,7 @@ tabular generator.
 | Categorical missingness | Uses a synthesis-time sentinel, then applies IFCFill's authoritative reconstructed mask |
 | Missingness flags | Adds `<column>__ifc_missing` flags for numeric and datetime columns with nulls so generators learn missingness |
 | Missingness reconstruction | Generator-learned (default), hybrid conditional, marginal `P(M_j)`, or empirical joint `P(M_1, ..., M_p)` |
+| Mode selection (optional) | `select_mode()` chooses the hybrid, joint, or marginal mode from the observed data alone |
 | Categorical label encoding | Optionally encode filled categories as integer codes with a separate inverse-compatible encoder layer |
 | Datetime conversion | Date/time → integer relative to a configurable anchor |
 | Parallel processing | Use `n_jobs` to process columns concurrently during fit and transform |
@@ -38,6 +39,12 @@ tabular generator.
 
 ```bash
 pip install ifcfill
+```
+
+For data-driven mode selection with `select_mode()`:
+
+```bash
+pip install "ifcfill[select]"
 ```
 
 ## Quick example

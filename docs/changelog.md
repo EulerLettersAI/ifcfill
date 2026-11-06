@@ -7,6 +7,24 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.6.0] — 2026-11-06
+
+### Added
+
+- `select_mode()` chooses the missingness reconstruction mode (hybrid, joint,
+  or marginal) from the observed data alone, by three-fold cross-validation of
+  the missingness dependence gap. It returns a `ModeSelection` with the chosen
+  mode and the gap of every candidate.
+- `missingness_dependence_gap()` measures how much of the dependence of
+  missingness on the other variables a table loses relative to real data.
+- Optional `select` extra (`pip install "ifcfill[select]"`) that installs
+  scikit-learn for these functions. The core package still depends only on
+  NumPy and pandas.
+
+No changes to `IFCTransformer`.
+
+---
+
 ## [0.5.2] — 2026-10-29
 
 ### Fixed

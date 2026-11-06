@@ -42,6 +42,7 @@ variable.
 - **Synthesis-safe categorical missingness** — missing categorical values use the internal `__ifcfill_missing__` sentinel during transformation
 - **Missingness flags** — binary `<column>__ifc_missing` flags for integer, float, and datetime columns that contain nulls, so generators learn missingness jointly with the data
 - **Four reconstruction modes** — generator-learned (default), hybrid (exact rates placed by a conditional missingness model), marginal, or empirical joint row patterns
+- **Data-driven mode selection (optional)** — `select_mode()` picks the hybrid, joint, or marginal mode from the observed data alone, before synthesis
 - **Optional categorical label encoding** — fill categorical values first, then encode categories as integer codes through a separate label-encoding layer with inverse mappings
 - **Datetime → integer conversion** — converts date/time columns to integers relative to a configurable anchor date and time unit (days, seconds, ms, …)
 - **Constant column removal** — automatically drops true constant columns while preserving categorical missing categories when they are learnable
@@ -56,6 +57,12 @@ variable.
 
 ```bash
 pip install ifcfill
+```
+
+To use `select_mode()`, install the optional `select` extra, which adds scikit-learn:
+
+```bash
+pip install "ifcfill[select]"
 ```
 
 ---
@@ -139,6 +146,25 @@ data synthesis-ready. It does not control final missingness on its own. IFCFill 
 excess generated sentinels and applies its reconstructed mask as the authority.
 Integers are rounded without clipping and returned as nullable pandas `Int64`;
 floats remain floating-point and missing datetimes use `NaT`.
+
+### Choosing a mode from the data
+
+With the optional `select` extra, `select_mode()` chooses among the hybrid,
+joint, and marginal modes using only the observed data, by cross-validated
+comparison of how much dependence of missingness on the data each mode keeps:
+
+```bash
+pip install "ifcfill[select]"
+```
+
+```python
+from ifcfill import select_mode
+
+choice = select_mode(real_df, random_state=0)
+restored = tf.inverse_transform(
+    synthetic_ifc, missingness_restore=choice.mode, random_state=0
+)
+```
 
 ### From a CSV file
 

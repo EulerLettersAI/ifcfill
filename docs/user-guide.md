@@ -433,3 +433,50 @@ generator emits excess sentinels, IFCFill replaces them from valid generated
 categories; if none exist, it warns and samples from the fitted real categorical
 distribution. If too few sentinels are generated, the final mask still assigns
 the required missing positions.
+
+## Choosing a reconstruction mode
+
+The best mode depends on how the missingness arose, which is rarely known.
+`select_mode()` chooses among `"hybrid"`, `"joint"`, and `"marginal"` using only
+the observed data, before any synthesis. It needs scikit-learn:
+
+```bash
+pip install "ifcfill[select]"
+```
+
+```python
+from ifcfill import IFCTransformer, select_mode
+
+choice = select_mode(real_df, random_state=0)
+choice.mode   # e.g. "hybrid"
+choice.gaps   # mean validation dependence gap of each candidate mode
+
+tf = IFCTransformer().fit(real_df)
+synthetic_ifc = ...  # generator trained on tf.transform(real_df)
+restored = tf.inverse_transform(
+    synthetic_ifc, missingness_restore=choice.mode, random_state=0
+)
+```
+
+The observed data are split into three folds. In each rotation, IFCFill is
+fitted on one fold, the next fold is completed and reconstructed with every
+candidate mode, and each reconstruction is scored on the third fold with the
+missingness dependence gap. The mode with the smallest gap averaged over the
+rotations is selected.
+
+The dependence gap, available as `missingness_dependence_gap()`, measures how
+much of the dependence of missingness on the data is lost. For every partly
+missing column, a gradient-boosted classifier that predicts whether the value
+is missing from the other columns is trained on the real data and another on
+the data being assessed. Both are scored on unseen real rows, and the gap is
+the mean difference of their AUCs. Zero means the dependence is fully kept.
+
+`"generated"` is not a candidate, because its missingness comes from the
+generator and can only be judged after synthesis. Under missingness that is
+completely at random, no mode keeps more dependence than another, and the
+selected mode may vary with `random_state`.
+
+Pass `col_types` and other `IFCTransformer` options to `select_mode()` as you
+would to the transformer. Use `categorical_columns` to have the gap's
+classifiers treat a column as categorical, for example a binary outcome
+declared `"integer"`.
